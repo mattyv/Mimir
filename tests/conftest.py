@@ -9,16 +9,23 @@ from __future__ import annotations
 
 import hashlib
 import math
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+import psycopg
 import pytest
+from psycopg.rows import dict_row
 
 # ── Vocabulary path ────────────────────────────────────────────────────────────
 
 _VOCAB_PATH = Path(__file__).parent.parent / "src" / "mimir" / "vocabulary" / "vocabulary.yaml"
+
+# ── Test database DSN (running system PostgreSQL, unix socket) ────────────────
+
+_TEST_DSN = "dbname=mimir_test user=root"
 
 
 # ── Stub classes ───────────────────────────────────────────────────────────────
@@ -182,11 +189,34 @@ def core_vocabulary() -> Any:
     return load_vocabulary(_VOCAB_PATH)
 
 
-@pytest.fixture
-def pg() -> Any:
-    """Per-test PostgreSQL instance (Phase 2+).
+@pytest.fixture(scope="session", autouse=False)
+def _pg_schema() -> Iterator[None]:
+    """Session-scoped fixture: create schema once with autocommit DDL.
 
-    Requires pytest-postgresql and a running PostgreSQL server.
-    Skipped in Phase 0/1 since no persistence is needed yet.
+    Creates all Mimir tables at session start and drops them at session end.
+    Individual tests use the per-test ``pg`` fixture which wraps each test
+    inside a transaction + rollback for isolation.
     """
-    pytest.skip("PostgreSQL fixture not configured until Phase 2")
+    from mimir.persistence.schema import apply_schema, drop_schema
+
+    with psycopg.connect(_TEST_DSN, row_factory=dict_row, autocommit=True) as conn:
+        drop_schema(conn)
+        apply_schema(conn)
+    yield
+    with psycopg.connect(_TEST_DSN, row_factory=dict_row, autocommit=True) as conn:
+        drop_schema(conn)
+
+
+@pytest.fixture
+def pg(_pg_schema: None) -> Iterator[psycopg.Connection[dict[str, Any]]]:
+    """Per-test PostgreSQL connection with transaction rollback isolation.
+
+    Each test receives a connection already inside an open transaction.
+    On teardown the transaction is rolled back, leaving the database clean
+    for the next test.  The session-scoped ``_pg_schema`` fixture guarantees
+    tables already exist before any test runs.
+    """
+    with psycopg.connect(_TEST_DSN, row_factory=dict_row, autocommit=False) as conn:
+        conn.execute("BEGIN")
+        yield conn
+        conn.rollback()

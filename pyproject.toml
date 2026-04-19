@@ -18,7 +18,7 @@ dependencies = [
 orchestration = ["prefect>=3.0"]
 graph = ["networkx>=3.3"]
 persistence = [
-    "psycopg[binary]>=3.1",
+    "psycopg[binary,pool]>=3.1",
     "pgvector>=0.3",
     "alembic>=1.13",
 ]
@@ -41,6 +41,11 @@ dev = [
     "pre-commit>=3.7",
     "types-PyYAML>=6.0",
     "locust>=2.27",
+    "pytest-postgresql>=6.0",
+    "networkx>=3.3",
+    "psycopg[binary,pool]>=3.1",
+    "pgvector>=0.3",
+    "alembic>=1.13",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -91,3 +96,8 @@ strict = true
 python_version = "3.11"
 mypy_path = "src"
 packages = ["mimir"]
+
+# psycopg3 and psycopg_pool don't expose stubs in a way mypy resolves automatically
+[[tool.mypy.overrides]]
+module = ["mimir.persistence.*"]
+ignore_missing_imports = true
