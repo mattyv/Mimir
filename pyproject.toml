@@ -106,5 +106,9 @@ packages = ["mimir"]
 
 # psycopg3 and psycopg_pool don't expose stubs in a way mypy resolves automatically
 [[tool.mypy.overrides]]
-module = ["mimir.persistence.*"]
+module = ["mimir.persistence.*", "mimir.crawler.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["openai", "openai.*"]
 ignore_missing_imports = true

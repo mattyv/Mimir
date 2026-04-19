@@ -43,7 +43,7 @@ class FakeLLM:
     def _key(self, prompt: str) -> str:
         return hashlib.sha256(prompt.encode()).hexdigest()
 
-    def complete(self, prompt: str) -> str:
+    def complete(self, prompt: str, **_kwargs: Any) -> str:
         key = self._key(prompt)
         return self._responses.get(key, f"FAKE_RESPONSE_{key[:8]}")
 
