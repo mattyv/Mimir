@@ -71,6 +71,10 @@ class FakeEmbedder:
             vals = [v / magnitude for v in vals]
         return vals
 
+    def encode(self, text: str) -> list[float]:
+        """Alias for embed(); satisfies the resolution.Embedder protocol."""
+        return self.embed(text)
+
 
 class FakeSPARQL:
     """Wikidata SPARQL stub with recorded fixture responses."""
