@@ -10,7 +10,6 @@ from __future__ import annotations
 import hashlib
 import math
 from collections.abc import Iterator
-from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -89,19 +88,7 @@ class FakeSPARQL:
         self._responses[sparql_query] = response
 
 
-@dataclass
-class Chunk:
-    """A raw content chunk from a source system, pre-extraction."""
-
-    id: str
-    source_type: str  # confluence | github | slack | interview | code_analysis
-    content: str
-    acl: list[str] = field(default_factory=list)
-    retrieved_at: datetime = field(
-        default_factory=lambda: datetime(2026, 4, 19, tzinfo=UTC)
-    )
-    reference: str = ""
-
+from mimir.adapters.base import Chunk  # noqa: E402 (after stub classes)
 
 # ── Fixtures ───────────────────────────────────────────────────────────────────
 
@@ -121,6 +108,9 @@ def fake_sparql() -> FakeSPARQL:
     return FakeSPARQL()
 
 
+_SAMPLE_TS = datetime(2026, 4, 19, tzinfo=UTC)
+
+
 @pytest.fixture
 def sample_chunks() -> list[Chunk]:
     """Corpus of test chunks covering all source types with ACL metadata."""
@@ -134,6 +124,7 @@ def sample_chunks() -> list[Chunk]:
                 "The SLO for order submission is <5ms p99."
             ),
             acl=["space:trading-eng"],
+            retrieved_at=_SAMPLE_TS,
             reference="https://wiki.example.com/spaces/trading-eng/OMMS-overview",
         ),
         Chunk(
@@ -146,6 +137,7 @@ def sample_chunks() -> list[Chunk]:
                 "Maintained by the risk-infra team."
             ),
             acl=["repo:risk-infra/panic_server"],
+            retrieved_at=_SAMPLE_TS,
             reference="https://github.com/example/panic_server/README.md",
         ),
         Chunk(
@@ -156,6 +148,7 @@ def sample_chunks() -> list[Chunk]:
                 "We need hawkeye to expose the new API first."
             ),
             acl=["channel:trading-risk"],
+            retrieved_at=_SAMPLE_TS,
             reference="https://slack.example.com/archives/trading-risk/p1713523200",
         ),
         Chunk(
@@ -167,6 +160,7 @@ def sample_chunks() -> list[Chunk]:
                 "The dependency is hard — if the feed goes down, we stop quoting."
             ),
             acl=["internal"],
+            retrieved_at=_SAMPLE_TS,
             reference="interview://2026-04-15/risk-architecture-review",
         ),
         Chunk(
@@ -180,6 +174,7 @@ def sample_chunks() -> list[Chunk]:
                 "Cyclomatic complexity: 14 (high)"
             ),
             acl=["repo:risk-infra/risk-engine"],
+            retrieved_at=_SAMPLE_TS,
             reference="code://risk-infra/risk-engine/risk_engine.py",
         ),
     ]

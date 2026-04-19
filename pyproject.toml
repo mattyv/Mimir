@@ -24,6 +24,10 @@ persistence = [
 ]
 ml = ["sentence-transformers>=3.0"]
 wikidata = ["SPARQLWrapper>=2.0"]
+adapters = [
+    "httpx>=0.27",
+    "detect-secrets>=1.4",
+]
 mcp-server = ["mcp>=1.0"]
 llm = ["openai>=1.0", "httpx>=0.27"]
 pii = ["detect-secrets>=1.4"]
@@ -44,6 +48,8 @@ dev = [
     "pytest-postgresql>=6.0",
     "watchdog>=4.0",
     "networkx>=3.3",
+    "httpx>=0.27",
+    "detect-secrets>=1.4",
     "psycopg[binary,pool]>=3.1",
     "pgvector>=0.3",
     "alembic>=1.13",
