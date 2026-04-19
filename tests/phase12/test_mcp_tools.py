@@ -13,6 +13,7 @@ from mimir.mcp.tools import (
     TOOL_REGISTRY,
     tool_classify_entity,
     tool_entity_cascade_risk,
+    tool_explain_axiom,
     tool_find_relationships,
     tool_get_contradictions,
     tool_get_entity,
@@ -198,7 +199,7 @@ def test_tool_registry_contains_expected_tools() -> None:
     expected = {
         "get_entity", "list_entities", "classify_entity", "list_observations",
         "graph_metrics", "find_relationships", "get_neighborhood",
-        "entity_cascade_risk", "search", "get_contradictions",
+        "entity_cascade_risk", "search", "get_contradictions", "explain_axiom",
     }
     assert expected <= set(TOOL_REGISTRY.keys())
 
@@ -385,3 +386,82 @@ def test_get_contradictions_empty(pg: psycopg.Connection[dict[str, Any]]) -> Non
     result = tool_get_contradictions({}, pg, _INTERNAL)
     assert "contradictions" in result
     assert isinstance(result["contradictions"], list)
+
+
+# ── tool_explain_axiom ────────────────────────────────────────────────────────
+
+
+@pytest.mark.phase12
+def test_explain_axiom_entity_found(pg: psycopg.Connection[dict[str, Any]]) -> None:
+    eid = _make_entity(pg, "explain_svc")
+    result = tool_explain_axiom({"axiom_id": eid, "kind": "entity"}, pg, _INTERNAL)
+    assert "axiom" in result
+    assert result["kind"] == "entity"
+    assert "grounding_tier" in result
+    assert "sources" in result
+    assert "wikidata_chain" in result
+
+
+@pytest.mark.phase12
+def test_explain_axiom_entity_not_found(pg: psycopg.Connection[dict[str, Any]]) -> None:
+    result = tool_explain_axiom({"axiom_id": "ghost-id"}, pg, _INTERNAL)
+    assert result["error"] == "not_found"
+
+
+@pytest.mark.phase12
+def test_explain_axiom_entity_forbidden(pg: psycopg.Connection[dict[str, Any]]) -> None:
+    eid = _make_entity(pg, "explain_secret", acl=["team:secret"])
+    result = tool_explain_axiom({"axiom_id": eid, "kind": "entity"}, pg, {"unrelated"})
+    assert result["error"] == "forbidden"
+
+
+@pytest.mark.phase12
+def test_explain_axiom_unknown_kind(pg: psycopg.Connection[dict[str, Any]]) -> None:
+    result = tool_explain_axiom({"axiom_id": "x", "kind": "dragon"}, pg, _INTERNAL)
+    assert result["error"] == "unknown_kind"
+    assert result["kind"] == "dragon"
+
+
+@pytest.mark.phase12
+def test_explain_axiom_observation(pg: psycopg.Connection[dict[str, Any]]) -> None:
+    eid = _make_entity(pg, "obs_explain_svc")
+    _make_obs(pg, eid, "risk")
+    row = pg.execute(
+        "SELECT id FROM observations WHERE entity_id = %s LIMIT 1", (eid,)
+    ).fetchone()
+    assert row is not None
+    obs_id = str(row["id"])
+    result = tool_explain_axiom({"axiom_id": obs_id, "kind": "observation"}, pg, _INTERNAL)
+    assert result.get("error") is None
+    assert result["kind"] == "observation"
+    assert "axiom" in result
+
+
+@pytest.mark.phase12
+def test_explain_axiom_relationship(pg: psycopg.Connection[dict[str, Any]]) -> None:
+    a = _make_entity(pg, "explain_rel_a")
+    b = _make_entity(pg, "explain_rel_b")
+    _make_rel(pg, a, b)
+    row = pg.execute(
+        "SELECT id FROM relationships WHERE subject_id = %s LIMIT 1", (a,)
+    ).fetchone()
+    assert row is not None
+    rel_id = str(row["id"])
+    result = tool_explain_axiom({"axiom_id": rel_id, "kind": "relationship"}, pg, _INTERNAL)
+    assert result.get("error") is None
+    assert result["kind"] == "relationship"
+    assert "axiom" in result
+
+
+@pytest.mark.phase12
+def test_explain_axiom_invalid_id_for_bigserial(pg: psycopg.Connection[dict[str, Any]]) -> None:
+    result = tool_explain_axiom({"axiom_id": "not-an-int", "kind": "relationship"}, pg, _INTERNAL)
+    assert result["error"] == "not_found"
+
+
+@pytest.mark.phase12
+def test_explain_axiom_default_kind_is_entity(pg: psycopg.Connection[dict[str, Any]]) -> None:
+    eid = _make_entity(pg, "default_kind_svc")
+    result = tool_explain_axiom({"axiom_id": eid}, pg, _INTERNAL)
+    assert result.get("error") is None
+    assert result["kind"] == "entity"

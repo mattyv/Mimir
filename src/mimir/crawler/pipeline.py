@@ -14,7 +14,7 @@ import psycopg
 
 from mimir.adapters.base import Chunk
 from mimir.adapters.pii import scan_chunk
-from mimir.crawler.extractor import ExtractionResult, extract
+from mimir.crawler.extractor import ExtractionResult, extract_three_pass
 from mimir.grounder.wikidata import SPARQLClient, ground_entity
 from mimir.models.base import Grounding, GroundingTier, Source, Temporal, Visibility
 from mimir.models.nodes import Entity, Observation, Property, Relationship
@@ -108,7 +108,7 @@ def process_chunk(
         _reg.counter("chunks_pii_skipped", source_type=chunk.source_type).inc()
         return result
 
-    extraction: ExtractionResult = extract(chunk, llm)
+    extraction: ExtractionResult = extract_three_pass(chunk, llm)
     if extraction.parse_error:
         result.parse_error = extraction.parse_error
         _reg.counter("extraction_errors", source_type=chunk.source_type).inc()

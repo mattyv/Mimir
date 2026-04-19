@@ -14,15 +14,15 @@ from mimir.persistence.repository import EntityRepository, PropertyRepository
 
 
 def _fake_llm_for_chunk(chunk: Chunk) -> Any:
-    """Return a FakeLLM pre-programmed with a plausible extraction for each chunk."""
-    from mimir.crawler.prompts import build_extraction_prompt
+    """Return a FakeLLM pre-programmed with spine + observation responses for each chunk."""
+    from mimir.crawler.prompts import build_observations_prompt, build_spine_prompt
     from tests.conftest import FakeLLM
 
     llm = FakeLLM()
 
     if chunk.id == "confluence_001":
         llm.set_response(
-            build_extraction_prompt(chunk.content),
+            build_spine_prompt(chunk.content),
             json.dumps({
                 "entities": [
                     {"name": "OMMS", "type": "auros:TradingService", "description": "Options market making service"},
@@ -40,69 +40,71 @@ def _fake_llm_for_chunk(chunk: Chunk) -> Any:
                     {"subject": "FIX connector", "predicate": "auros:connects", "object": "CME"},
                     {"subject": "FIX connector", "predicate": "auros:connects", "object": "ICE"},
                 ],
-                "observations": [],
             }),
         )
 
     elif chunk.id == "github_001":
         llm.set_response(
-            build_extraction_prompt(chunk.content),
+            build_spine_prompt(chunk.content),
             json.dumps({
                 "entities": [
                     {"name": "panic_server", "type": "auros:TradingService", "description": "Safety circuit breaker"},
                     {"name": "risk_engine", "type": "auros:RiskSystem", "description": "Risk computation engine"},
                     {"name": "risk-infra team", "type": "auros:TradingTeam", "description": "Risk infrastructure team"},
                 ],
-                "properties": [],
                 "relationships": [
                     {"subject": "panic_server", "predicate": "auros:dependsOn", "object": "risk_engine"},
                     {"subject": "risk-infra team", "predicate": "auros:owns", "object": "panic_server"},
                 ],
-                "observations": [],
             }),
         )
 
     elif chunk.id == "slack_001":
         llm.set_response(
-            build_extraction_prompt(chunk.content),
+            build_spine_prompt(chunk.content),
             json.dumps({
                 "entities": [
                     {"name": "PAN-12445", "type": "schema:SoftwareApplication", "description": "Ticket PAN-12445"},
                     {"name": "hawkeye", "type": "auros:TradingService", "description": "Hawkeye service"},
                 ],
-                "properties": [],
                 "relationships": [
                     {"subject": "PAN-12445", "predicate": "auros:dependsOn", "object": "hawkeye"},
                 ],
-                "observations": [
-                    {"entity_name": "PAN-12445", "type": "risk", "description": "Blocked on sub-account consolidation"},
-                ],
             }),
+        )
+        llm.set_response(
+            build_observations_prompt(chunk.content),
+            json.dumps({"observations": [
+                {"entity_name": "PAN-12445", "type": "risk", "description": "Blocked on sub-account consolidation"},
+            ]}),
         )
 
     elif chunk.id == "interview_001":
         llm.set_response(
-            build_extraction_prompt(chunk.content),
+            build_spine_prompt(chunk.content),
             json.dumps({
                 "entities": [
                     {"name": "hedge book feed", "type": "auros:TradingService", "description": "Hedge book feed"},
                     {"name": "CME clearing", "type": "auros:Venue", "description": "CME clearing house"},
+                    {"name": "FIX connector", "type": "auros:Connector", "description": "FIX protocol connector"},
                 ],
-                "properties": [],
                 "relationships": [
                     {"subject": "hedge book feed", "predicate": "auros:dependsOn", "object": "FIX connector"},
                     {"subject": "FIX connector", "predicate": "auros:connects", "object": "CME clearing"},
                 ],
-                "observations": [
-                    {"entity_name": "hedge book feed", "type": "risk",
-                     "description": "Hard dependency on FIX connector — outage stops quoting"},
-                ],
             }),
+        )
+        llm.set_response(
+            build_observations_prompt(chunk.content),
+            json.dumps({"observations": [
+                {"entity_name": "hedge book feed", "type": "risk",
+                 "description": "Hard dependency on FIX connector — outage stops quoting"},
+            ]}),
         )
 
     elif chunk.id == "code_001":
         llm.set_response(
-            build_extraction_prompt(chunk.content),
+            build_spine_prompt(chunk.content),
             json.dumps({
                 "entities": [
                     {"name": "risk_engine", "type": "auros:RiskSystem", "description": "Python risk engine"},
@@ -110,12 +112,14 @@ def _fake_llm_for_chunk(chunk: Chunk) -> Any:
                 "properties": [
                     {"entity_name": "risk_engine", "key": "schema:programmingLanguage", "value": "Python 3.12"},
                 ],
-                "relationships": [],
-                "observations": [
-                    {"entity_name": "risk_engine", "type": "smell",
-                     "description": "Cyclomatic complexity 14 — high"},
-                ],
             }),
+        )
+        llm.set_response(
+            build_observations_prompt(chunk.content),
+            json.dumps({"observations": [
+                {"entity_name": "risk_engine", "type": "smell",
+                 "description": "Cyclomatic complexity 14 — high"},
+            ]}),
         )
 
     return llm

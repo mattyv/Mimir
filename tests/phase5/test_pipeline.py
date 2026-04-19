@@ -11,7 +11,7 @@ import pytest
 
 from mimir.adapters.base import Chunk
 from mimir.crawler.pipeline import PipelineResult, process_chunk
-from mimir.crawler.prompts import build_extraction_prompt
+from mimir.crawler.prompts import build_observations_prompt, build_spine_prompt
 from mimir.persistence.repository import EntityRepository
 from tests.conftest import FakeLLM
 
@@ -29,9 +29,11 @@ def _chunk(content: str, chunk_id: str = "pipe_chunk") -> Chunk:
     )
 
 
-def _llm(content: str, payload: dict) -> FakeLLM:
+def _llm(content: str, spine_payload: dict, obs_payload: dict | None = None) -> FakeLLM:
     llm = FakeLLM()
-    llm.set_response(build_extraction_prompt(content), json.dumps(payload))
+    llm.set_response(build_spine_prompt(content), json.dumps(spine_payload))
+    if obs_payload is not None:
+        llm.set_response(build_observations_prompt(content), json.dumps(obs_payload))
     return llm
 
 
@@ -63,11 +65,9 @@ def test_pipeline_inserts_relationships(pg: psycopg.Connection[dict[str, Any]]) 
 @pytest.mark.phase5
 def test_pipeline_inserts_observations(pg: psycopg.Connection[dict[str, Any]]) -> None:
     content = "OMMS has high SLO breach risk."
-    payload = {
-        "entities": [{"name": "OMMS", "type": "auros:TradingService"}],
-        "observations": [{"entity_name": "OMMS", "type": "risk", "description": "SLO breach risk"}],
-    }
-    result = process_chunk(_chunk(content), _llm(content, payload), pg)
+    spine = {"entities": [{"name": "OMMS", "type": "auros:TradingService"}]}
+    obs = {"observations": [{"entity_name": "OMMS", "type": "risk", "description": "SLO breach risk"}]}
+    result = process_chunk(_chunk(content), _llm(content, spine, obs), pg)
     assert result.observations_inserted == 1
 
 
@@ -87,7 +87,7 @@ def test_pipeline_skips_relationship_with_unknown_entity(pg: psycopg.Connection[
 def test_pipeline_handles_parse_error(pg: psycopg.Connection[dict[str, Any]]) -> None:
     content = "some content"
     llm = FakeLLM()
-    llm.set_response(build_extraction_prompt(content), "INVALID {{{")
+    llm.set_response(build_spine_prompt(content), "INVALID {{{")
     result = process_chunk(_chunk(content), llm, pg)
     assert result.parse_error is not None
     assert result.entities_upserted == 0
@@ -97,7 +97,7 @@ def test_pipeline_handles_parse_error(pg: psycopg.Connection[dict[str, Any]]) ->
 def test_pipeline_result_chunk_id(pg: psycopg.Connection[dict[str, Any]]) -> None:
     content = "plain content"
     llm = FakeLLM()
-    llm.set_response(build_extraction_prompt(content), "{}")
+    llm.set_response(build_spine_prompt(content), "{}")
     result = process_chunk(_chunk(content, "my_chunk"), llm, pg)
     assert result.chunk_id == "my_chunk"
     assert isinstance(result, PipelineResult)

@@ -294,6 +294,78 @@ def tool_get_contradictions(
     return {"contradictions": [dataclasses.asdict(c) for c in conflicts]}
 
 
+# Allowed tables for bigserial-keyed axiom lookup
+_BIGSERIAL_TABLES: frozenset[str] = frozenset({"relationships", "properties", "observations"})
+
+
+def _load_bigserial_row(
+    conn: psycopg.Connection[dict[str, Any]],
+    table: str,
+    axiom_id: str,
+) -> dict[str, Any] | None:
+    if table not in _BIGSERIAL_TABLES:
+        return None
+    try:
+        row_id = int(axiom_id)
+    except ValueError:
+        return None
+    row = conn.execute(f"SELECT * FROM {table} WHERE id = %s", (row_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def _wikidata_chain(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    qid = payload.get("wikidata_qid")
+    if not qid:
+        return []
+    return [{"qid": qid, "label": payload.get("wikidata_label", "")}]
+
+
+def tool_explain_axiom(
+    args: dict[str, Any],
+    conn: psycopg.Connection[dict[str, Any]],
+    caller_groups: set[str],
+) -> dict[str, Any]:
+    """Return the full grounding tree for an axiom (entity, relationship, property, or observation)."""
+    axiom_id: str = args["axiom_id"]
+    axiom_kind: str = args.get("kind", "entity")
+
+    _kind_to_table = {
+        "relationship": "relationships",
+        "property": "properties",
+        "observation": "observations",
+    }
+    row: dict[str, Any] | None
+    if axiom_kind == "entity":
+        row = EntityRepository(conn).get(axiom_id)
+    elif axiom_kind in _kind_to_table:
+        row = _load_bigserial_row(conn, _kind_to_table[axiom_kind], axiom_id)
+    else:
+        return {"error": "unknown_kind", "kind": axiom_kind}
+
+    if row is None:
+        return {"error": "not_found", "axiom_id": axiom_id, "kind": axiom_kind}
+
+    payload = row.get("payload") or {}
+    vis = payload.get("visibility", {})
+    decision = check_access(
+        vis.get("acl", []), vis.get("sensitivity", "internal"), caller_groups
+    )
+    if not decision.allowed:
+        return {"error": "forbidden", "axiom_id": axiom_id}
+
+    grounding = payload.get("grounding", {})
+    source = payload.get("source")
+    sources = payload.get("sources") or ([source] if source else [])
+
+    return {
+        "axiom": row,
+        "kind": axiom_kind,
+        "grounding_tier": grounding.get("tier", "ungrounded"),
+        "sources": sources,
+        "wikidata_chain": _wikidata_chain(payload),
+    }
+
+
 # Registry: maps tool name → callable
 TOOL_REGISTRY: dict[str, Any] = {
     "get_entity": tool_get_entity,
@@ -306,4 +378,5 @@ TOOL_REGISTRY: dict[str, Any] = {
     "entity_cascade_risk": tool_entity_cascade_risk,
     "search": tool_search,
     "get_contradictions": tool_get_contradictions,
+    "explain_axiom": tool_explain_axiom,
 }
