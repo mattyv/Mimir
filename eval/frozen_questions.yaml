@@ -1,0 +1,168 @@
+# Mimir Eval Set — 20 Frozen Questions
+#
+# Written in Week 1.  DO NOT EDIT after the initial commit.
+# The SHA-256 of this file is stored in .eval_checksum and verified in CI.
+#
+# Categories:
+#   factual_lookup        (4) — point facts about entities
+#   relationship_traversal (4) — following connections between entities
+#   policy_recall         (4) — SLOs, constraints, rules
+#   decision_history      (4) — why decisions were made
+#   cross_cutting         (4) — impact analysis across the graph
+#
+# Scoring: blind-graded 1–5 for correctness and usefulness.
+# Runs: weeks 6, 9, 12.
+
+questions:
+  # ── Factual lookup (4) ────────────────────────────────────────────────────
+
+  - id: FL-01
+    category: factual_lookup
+    question: >
+      Who owns the options market making system?
+    notes: >
+      Tests basic ownership relationship extraction.
+      Expected: a named person or team with high confidence.
+
+  - id: FL-02
+    category: factual_lookup
+    question: >
+      What programming language is the risk engine implemented in?
+    notes: >
+      Tests property extraction from code analysis sources.
+
+  - id: FL-03
+    category: factual_lookup
+    question: >
+      Which venues does the options market making service quote on?
+    notes: >
+      Tests auros:quotesOn relationship retrieval.
+
+  - id: FL-04
+    category: factual_lookup
+    question: >
+      What is the current status of ticket PAN-12445?
+    notes: >
+      Tests cross-source entity resolution (Jira + Slack mentions).
+
+  # ── Relationship traversal (4) ────────────────────────────────────────────
+
+  - id: RT-01
+    category: relationship_traversal
+    question: >
+      What services directly depend on the risk engine?
+    notes: >
+      Tests auros:dependsOn traversal, one hop out from the risk engine entity.
+
+  - id: RT-02
+    category: relationship_traversal
+    question: >
+      Which teams are involved in the order lifecycle process?
+    notes: >
+      Tests schema:memberOf + auros:participatesIn across Process nodes.
+
+  - id: RT-03
+    category: relationship_traversal
+    question: >
+      What does the panic_server depend on, and what depends on panic_server?
+    notes: >
+      Tests bidirectional auros:dependsOn traversal.
+
+  - id: RT-04
+    category: relationship_traversal
+    question: >
+      Which people report to the head of the APAC trading desk?
+    notes: >
+      Tests auros:reportsTo chain traversal.
+
+  # ── Policy recall (4) ─────────────────────────────────────────────────────
+
+  - id: PR-01
+    category: policy_recall
+    question: >
+      What is the SLO for order submission latency?
+    notes: >
+      Tests Constraint extraction with constraint_type=performance.
+
+  - id: PR-02
+    category: policy_recall
+    question: >
+      What are the availability requirements for the hedge book feed?
+    notes: >
+      Tests availability constraint on a specific service.
+
+  - id: PR-03
+    category: policy_recall
+    question: >
+      What governance policy covers position limit breaches?
+    notes: >
+      Tests auros:governs predicate from Policy nodes.
+
+  - id: PR-04
+    category: policy_recall
+    question: >
+      What are the legal constraints on trading in US equity options?
+    notes: >
+      Tests constraint_type=legal extraction and recall.
+
+  # ── Decision history (4) ──────────────────────────────────────────────────
+
+  - id: DH-01
+    category: decision_history
+    question: >
+      Why did the team choose CME over other venues for equity options clearing?
+    notes: >
+      Tests Decision node retrieval with tradeoffs and rationale.
+
+  - id: DH-02
+    category: decision_history
+    question: >
+      What was the rationale for implementing panic_server in Rust?
+    notes: >
+      Tests technology-choice Decision node.
+
+  - id: DH-03
+    category: decision_history
+    question: >
+      When was the sub-account architecture consolidation decided, and who made the call?
+    notes: >
+      Tests Decision.when and Decision.who fields.
+
+  - id: DH-04
+    category: decision_history
+    question: >
+      What trade-offs were accepted when choosing the FIX connector over a native API?
+    notes: >
+      Tests Decision.tradeoffs list retrieval.
+
+  # ── Cross-cutting analysis (4) ────────────────────────────────────────────
+
+  - id: CC-01
+    category: cross_cutting
+    question: >
+      Which services are exposed if the hedge book feed goes down?
+    notes: >
+      Tests multi-hop auros:dependsOn impact analysis.
+      Requires graph traversal across at least 3 hops.
+
+  - id: CC-02
+    category: cross_cutting
+    question: >
+      What is the blast radius of a panic_server outage?
+    notes: >
+      Tests reverse dependency traversal from panic_server.
+
+  - id: CC-03
+    category: cross_cutting
+    question: >
+      Which teams would be affected by a change to the risk engine API?
+    notes: >
+      Tests combined relationship + organizational traversal.
+
+  - id: CC-04
+    category: cross_cutting
+    question: >
+      Are there any circular dependencies in the trading system services?
+    notes: >
+      Tests cycle detection / graph structural analysis.
+      This is a hard question — measures reasoning capability, not just retrieval.

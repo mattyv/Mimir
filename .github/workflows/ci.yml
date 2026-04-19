@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  lint-type-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Ruff lint
+        run: ruff check src/ tests/
+
+      - name: Ruff format check
+        run: ruff format --check src/ tests/
+
+      - name: Mypy type check
+        run: mypy --strict src/
+
+      - name: Run tests with coverage
+        run: pytest -m "phase0 or phase1" --cov=src/mimir --cov-report=term-missing --cov-fail-under=95
+
+      - name: Verify eval checksum
+        run: |
+          stored=$(cat .eval_checksum)
+          computed=$(sha256sum eval/frozen_questions.yaml | awk '{print $1}')
+          if [ "$stored" != "$computed" ]; then
+            echo "eval/frozen_questions.yaml has been modified! Stored: $stored, Computed: $computed"
+            exit 1
+          fi
+          echo "Checksum OK: $computed"

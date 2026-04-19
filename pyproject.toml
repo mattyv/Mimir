@@ -1,0 +1,93 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mimir"
+version = "0.1.0"
+description = "Axiom-grounded world model service"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.7",
+    "pyyaml>=6.0",
+    "pyshacl>=0.25",
+    "rdflib>=7.0",
+]
+
+[project.optional-dependencies]
+orchestration = ["prefect>=3.0"]
+graph = ["networkx>=3.3"]
+persistence = [
+    "psycopg[binary]>=3.1",
+    "pgvector>=0.3",
+    "alembic>=1.13",
+]
+ml = ["sentence-transformers>=3.0"]
+wikidata = ["SPARQLWrapper>=2.0"]
+mcp-server = ["mcp>=1.0"]
+llm = ["openai>=1.0", "httpx>=0.27"]
+pii = ["detect-secrets>=1.4"]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "pytest-asyncio>=0.23",
+    "pytest-xdist>=3.6",
+    "hypothesis>=6.100",
+    "responses>=0.25",
+    "respx>=0.21",
+    "coverage[toml]>=7.5",
+    "ruff>=0.4",
+    "mypy>=1.10",
+    "pre-commit>=3.7",
+    "types-PyYAML>=6.0",
+    "locust>=2.27",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mimir"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = [
+    "phase0: Phase 0 scaffolding and contracts",
+    "phase1: Phase 1 schema, vocabulary, and temporal model",
+    "phase2: Phase 2 persistence layer",
+    "phase3: Phase 3 entity resolution",
+    "phase4: Phase 4 source adapters",
+    "phase5: Phase 5 crawler extraction",
+    "phase6: Phase 6 source authority and conflict resolution",
+    "phase7: Phase 7 cynefin classifier",
+    "phase8: Phase 8 complexity analyzer",
+    "phase9: Phase 9 grounder",
+    "phase10: Phase 10 temporal management",
+    "phase11: Phase 11 permissions and ACL",
+    "phase12: Phase 12 MCP server",
+    "phase13: Phase 13 normalization and promotion",
+    "phase14: Phase 14 observability",
+    "phase15: Phase 15 eval harness",
+]
+
+[tool.coverage.run]
+source = ["src/mimir"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+fail_under = 95
+
+[tool.ruff]
+src = ["src"]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]
+
+[tool.mypy]
+strict = true
+python_version = "3.11"
+mypy_path = "src"
+packages = ["mimir"]

@@ -1,0 +1,281 @@
+# Mimir Core Vocabulary — version 0.1.0
+#
+# Two tiers:
+#   Core  — schema.org types/predicates + auros: domain-specific extensions
+#   Provisional — auros:provisional:* (open, quarantined; tracked separately)
+#
+# Polarity declarations are non-negotiable.  Opposite-polarity IRIs may never
+# be auto-merged — all merges go through the human review queue.
+
+version: "0.1.0"
+
+# ── Entity types (~20) ────────────────────────────────────────────────────────
+entity_types:
+  # schema.org base types
+  - iri: "schema:Organization"
+    label: "Organization"
+
+  - iri: "schema:Person"
+    label: "Person"
+
+  - iri: "schema:SoftwareApplication"
+    label: "Software Application"
+
+  - iri: "schema:Service"
+    label: "Service"
+
+  - iri: "schema:CreativeWork"
+    label: "Creative Work"
+
+  - iri: "schema:Event"
+    label: "Event"
+
+  - iri: "schema:Action"
+    label: "Action"
+
+  - iri: "schema:Rule"
+    label: "Rule"
+
+  - iri: "schema:ComputerLanguage"
+    label: "Computer Language"
+
+  # auros: domain-specific extensions
+  - iri: "auros:TradingService"
+    label: "Trading Service"
+    subclass_of: "schema:SoftwareApplication"
+
+  - iri: "auros:TradingTeam"
+    label: "Trading Team"
+    subclass_of: "schema:Organization"
+
+  - iri: "auros:Strategy"
+    label: "Strategy"
+
+  - iri: "auros:RiskLimit"
+    label: "Risk Limit"
+
+  - iri: "auros:Venue"
+    label: "Venue"
+
+  - iri: "auros:OrderBook"
+    label: "Order Book"
+
+  - iri: "auros:Connector"
+    label: "Connector"
+
+  - iri: "auros:Process"
+    label: "Process"
+
+  - iri: "auros:Decision"
+    label: "Decision"
+
+  - iri: "auros:Policy"
+    label: "Policy"
+
+  - iri: "auros:Role"
+    label: "Role"
+
+# ── Predicates (~30) ──────────────────────────────────────────────────────────
+predicates:
+  # Organizational structure
+  - iri: "schema:memberOf"
+    label: "member of"
+    domain:
+      - "schema:Person"
+    range:
+      - "schema:Organization"
+      - "auros:TradingTeam"
+
+  - iri: "schema:parentOrganization"
+    label: "parent organization"
+    domain:
+      - "schema:Organization"
+      - "auros:TradingTeam"
+    range:
+      - "schema:Organization"
+
+  - iri: "schema:subOrganization"
+    label: "sub-organization"
+    domain:
+      - "schema:Organization"
+    range:
+      - "schema:Organization"
+      - "auros:TradingTeam"
+
+  # Authorship / ownership
+  - iri: "schema:author"
+    label: "author"
+    domain:
+      - "schema:Person"
+      - "schema:Organization"
+    range:
+      - "schema:CreativeWork"
+
+  - iri: "schema:maintainer"
+    label: "maintainer"
+    domain:
+      - "schema:Person"
+      - "schema:Organization"
+    range:
+      - "schema:SoftwareApplication"
+      - "auros:TradingService"
+
+  - iri: "schema:provider"
+    label: "provider"
+    domain:
+      - "schema:Organization"
+    range:
+      - "schema:Service"
+      - "auros:TradingService"
+
+  # Knowledge / skills
+  - iri: "schema:knowsAbout"
+    label: "knows about"
+    domain:
+      - "schema:Person"
+    range: []
+
+  # Temporal / metadata properties
+  - iri: "schema:dateCreated"
+    label: "date created"
+    domain: []
+    range: []
+
+  - iri: "schema:availability"
+    label: "availability"
+    domain: []
+    range: []
+
+  - iri: "schema:programmingLanguage"
+    label: "programming language"
+    domain:
+      - "schema:SoftwareApplication"
+      - "auros:TradingService"
+    range:
+      - "schema:ComputerLanguage"
+
+  # auros: core dependency predicates (POLARITY DECLARED)
+  - iri: "auros:dependsOn"
+    label: "depends on"
+    polarity: "positive"
+    domain: []
+    range: []
+
+  - iri: "auros:independentOf"
+    label: "independent of"
+    polarity: "negative"
+    polarity_opposite: "auros:dependsOn"
+    domain: []
+    range: []
+
+  # auros: implementation and ownership
+  - iri: "auros:implements"
+    label: "implements"
+    domain: []
+    range: []
+
+  - iri: "auros:owns"
+    label: "owns"
+    domain:
+      - "schema:Person"
+      - "schema:Organization"
+      - "auros:TradingTeam"
+    range: []
+
+  - iri: "auros:blocks"
+    label: "blocks"
+    domain: []
+    range: []
+
+  # Reporting structure
+  - iri: "auros:reportsTo"
+    label: "reports to"
+    domain:
+      - "schema:Person"
+    range:
+      - "schema:Person"
+
+  # Data flow
+  - iri: "auros:supplies"
+    label: "supplies"
+    domain: []
+    range: []
+
+  - iri: "auros:consumes"
+    label: "consumes"
+    domain: []
+    range: []
+
+  - iri: "auros:produces"
+    label: "produces"
+    domain: []
+    range: []
+
+  # Governance
+  - iri: "auros:governs"
+    label: "governs"
+    domain:
+      - "auros:Policy"
+      - "schema:Rule"
+    range: []
+
+  - iri: "auros:participatesIn"
+    label: "participates in"
+    domain: []
+    range: []
+
+  # Trading-specific
+  - iri: "auros:quotesOn"
+    label: "quotes on"
+    domain:
+      - "auros:TradingService"
+    range:
+      - "auros:Venue"
+
+  - iri: "auros:hedges"
+    label: "hedges"
+    domain: []
+    range: []
+
+  - iri: "auros:clearsOn"
+    label: "clears on"
+    domain:
+      - "auros:TradingService"
+    range:
+      - "auros:Venue"
+
+  # Additional schema.org predicates
+  - iri: "schema:description"
+    label: "description"
+    domain: []
+    range: []
+
+  - iri: "schema:name"
+    label: "name"
+    domain: []
+    range: []
+
+  - iri: "schema:identifier"
+    label: "identifier"
+    domain: []
+    range: []
+
+  - iri: "schema:url"
+    label: "url"
+    domain: []
+    range: []
+
+  - iri: "schema:version"
+    label: "version"
+    domain: []
+    range: []
+
+  - iri: "schema:dateModified"
+    label: "date modified"
+    domain: []
+    range: []
+
+  - iri: "auros:slo"
+    label: "SLO"
+    domain: []
+    range: []
