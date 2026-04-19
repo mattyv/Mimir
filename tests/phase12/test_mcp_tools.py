@@ -12,14 +12,23 @@ import pytest
 from mimir.mcp.tools import (
     TOOL_REGISTRY,
     tool_classify_entity,
+    tool_entity_cascade_risk,
+    tool_find_relationships,
+    tool_get_contradictions,
     tool_get_entity,
+    tool_get_neighborhood,
     tool_graph_metrics,
     tool_list_entities,
     tool_list_observations,
+    tool_search,
 )
 from mimir.models.base import Grounding, GroundingTier, Source, Temporal, Visibility
-from mimir.models.nodes import Entity, Observation
-from mimir.persistence.repository import EntityRepository, ObservationRepository
+from mimir.models.nodes import Entity, Observation, Relationship
+from mimir.persistence.repository import (
+    EntityRepository,
+    ObservationRepository,
+    RelationshipRepository,
+)
 
 _NOW = datetime(2026, 4, 19, tzinfo=UTC)
 _VOCAB = "0.1.0"
@@ -186,7 +195,11 @@ def test_graph_metrics_returns_expected_fields(pg: psycopg.Connection[dict[str, 
 
 @pytest.mark.phase12
 def test_tool_registry_contains_expected_tools() -> None:
-    expected = {"get_entity", "list_entities", "classify_entity", "list_observations", "graph_metrics"}
+    expected = {
+        "get_entity", "list_entities", "classify_entity", "list_observations",
+        "graph_metrics", "find_relationships", "get_neighborhood",
+        "entity_cascade_risk", "search", "get_contradictions",
+    }
     assert expected <= set(TOOL_REGISTRY.keys())
 
 
@@ -194,3 +207,181 @@ def test_tool_registry_contains_expected_tools() -> None:
 def test_tool_registry_callables() -> None:
     for name, fn in TOOL_REGISTRY.items():
         assert callable(fn), f"{name} should be callable"
+
+
+# ── tool_find_relationships ───────────────────────────────────────────────────
+
+
+def _make_rel(
+    conn: psycopg.Connection[dict[str, Any]],
+    subj: str,
+    obj: str,
+    predicate: str = "auros:dependsOn",
+) -> None:
+    RelationshipRepository(conn).insert(
+        Relationship(
+            subject_id=subj,
+            predicate=predicate,
+            object_id=obj,
+            confidence=0.9,
+            source=_source(),
+            grounding=_grounding(),
+            temporal=Temporal(valid_from=_NOW),
+            visibility=Visibility(acl=["internal"], sensitivity="internal"),
+            vocabulary_version=_VOCAB,
+        )
+    )
+
+
+@pytest.mark.phase12
+def test_find_relationships_requires_filter(pg: psycopg.Connection[dict[str, Any]]) -> None:
+    result = tool_find_relationships({}, pg, _INTERNAL)
+    assert result["error"] == "at_least_one_filter_required"
+
+
+@pytest.mark.phase12
+def test_find_relationships_by_subject(pg: psycopg.Connection[dict[str, Any]]) -> None:
+    a = _make_entity(pg, "fr_a")
+    b = _make_entity(pg, "fr_b")
+    _make_rel(pg, a, b)
+    result = tool_find_relationships({"subject_id": a}, pg, _INTERNAL)
+    assert result["count"] == 1
+    assert result["relationships"][0]["subject_id"] == a
+
+
+@pytest.mark.phase12
+def test_find_relationships_by_predicate(pg: psycopg.Connection[dict[str, Any]]) -> None:
+    a = _make_entity(pg, "fr_pred_a")
+    b = _make_entity(pg, "fr_pred_b")
+    _make_rel(pg, a, b, "auros:dependsOn")
+    result = tool_find_relationships({"predicate": "auros:dependsOn"}, pg, _INTERNAL)
+    assert result["count"] >= 1
+
+
+@pytest.mark.phase12
+def test_find_relationships_by_object(pg: psycopg.Connection[dict[str, Any]]) -> None:
+    a = _make_entity(pg, "fr_obj_a")
+    b = _make_entity(pg, "fr_obj_b")
+    _make_rel(pg, a, b)
+    result = tool_find_relationships({"object_id": b}, pg, _INTERNAL)
+    assert result["count"] == 1
+    assert result["relationships"][0]["object_id"] == b
+
+
+@pytest.mark.phase12
+def test_find_relationships_combination_filter(pg: psycopg.Connection[dict[str, Any]]) -> None:
+    a = _make_entity(pg, "fr_combo_a")
+    b = _make_entity(pg, "fr_combo_b")
+    c = _make_entity(pg, "fr_combo_c")
+    _make_rel(pg, a, b)
+    _make_rel(pg, a, c)
+    result = tool_find_relationships({"subject_id": a, "object_id": b}, pg, _INTERNAL)
+    assert result["count"] == 1
+
+
+@pytest.mark.phase12
+def test_find_relationships_truncation_flag(pg: psycopg.Connection[dict[str, Any]]) -> None:
+    result = tool_find_relationships({"predicate": "auros:dependsOn", "limit": 1000}, pg, _INTERNAL)
+    assert "truncated" in result
+
+
+# ── tool_get_neighborhood ─────────────────────────────────────────────────────
+
+
+@pytest.mark.phase12
+def test_get_neighborhood_center_exists(pg: psycopg.Connection[dict[str, Any]]) -> None:
+    a = _make_entity(pg, "nb_center")
+    b = _make_entity(pg, "nb_neighbor")
+    _make_rel(pg, a, b)
+    result = tool_get_neighborhood({"entity_id": a, "depth": 1}, pg, _INTERNAL)
+    assert result["center"] == a
+    node_ids = [n["id"] for n in result["nodes"]]
+    assert a in node_ids
+    assert b in node_ids
+
+
+@pytest.mark.phase12
+def test_get_neighborhood_empty_graph(pg: psycopg.Connection[dict[str, Any]]) -> None:
+    result = tool_get_neighborhood({"entity_id": "ghost"}, pg, _INTERNAL)
+    assert result["nodes"] == []
+
+
+@pytest.mark.phase12
+def test_get_neighborhood_depth_capped_at_3(pg: psycopg.Connection[dict[str, Any]]) -> None:
+    a = _make_entity(pg, "nb_deep")
+    result = tool_get_neighborhood({"entity_id": a, "depth": 99}, pg, _INTERNAL)
+    assert result["depth"] == 3
+
+
+@pytest.mark.phase12
+def test_get_neighborhood_predicate_filter(pg: psycopg.Connection[dict[str, Any]]) -> None:
+    a = _make_entity(pg, "nb_pf_a")
+    b = _make_entity(pg, "nb_pf_b")
+    _make_rel(pg, a, b, "auros:dependsOn")
+    result = tool_get_neighborhood(
+        {"entity_id": a, "depth": 1, "predicate": "auros:owns"}, pg, _INTERNAL
+    )
+    assert result["edges"] == []
+
+
+# ── tool_entity_cascade_risk ──────────────────────────────────────────────────
+
+
+@pytest.mark.phase12
+def test_entity_cascade_risk_not_found(pg: psycopg.Connection[dict[str, Any]]) -> None:
+    result = tool_entity_cascade_risk({"entity_id": "ghost"}, pg, _INTERNAL)
+    assert result["error"] == "not_found"
+
+
+@pytest.mark.phase12
+def test_entity_cascade_risk_isolated_node(pg: psycopg.Connection[dict[str, Any]]) -> None:
+    eid = _make_entity(pg, "cr_isolated")
+    result = tool_entity_cascade_risk({"entity_id": eid}, pg, _INTERNAL)
+    assert result["cascade_risk"] == 0.0
+    assert result["downstream_count"] == 0
+
+
+@pytest.mark.phase12
+def test_entity_cascade_risk_with_downstream(pg: psycopg.Connection[dict[str, Any]]) -> None:
+    a = _make_entity(pg, "cr_upstream")
+    b = _make_entity(pg, "cr_downstream")
+    _make_rel(pg, a, b)
+    result = tool_entity_cascade_risk({"entity_id": a}, pg, _INTERNAL)
+    assert result["cascade_risk"] > 0.0
+    assert result["downstream_count"] >= 1
+    assert b in result["downstream_entities"]
+
+
+# ── tool_search ───────────────────────────────────────────────────────────────
+
+
+@pytest.mark.phase12
+def test_search_finds_by_name(pg: psycopg.Connection[dict[str, Any]]) -> None:
+    _make_entity(pg, "SearchableService")
+    result = tool_search({"query": "searchable"}, pg, _INTERNAL)
+    assert result["count"] >= 1
+    names = [r["name"] for r in result["results"]]
+    assert any("Searchable" in n for n in names)
+
+
+@pytest.mark.phase12
+def test_search_empty_results(pg: psycopg.Connection[dict[str, Any]]) -> None:
+    result = tool_search({"query": "zzznomatch999"}, pg, _INTERNAL)
+    assert result["count"] == 0
+
+
+@pytest.mark.phase12
+def test_search_respects_acl(pg: psycopg.Connection[dict[str, Any]]) -> None:
+    _make_entity(pg, "SecretSearchSvc", acl=["team:secret"])
+    result = tool_search({"query": "secretsearch"}, pg, {"unrelated"})
+    assert result["count"] == 0
+
+
+# ── tool_get_contradictions ───────────────────────────────────────────────────
+
+
+@pytest.mark.phase12
+def test_get_contradictions_empty(pg: psycopg.Connection[dict[str, Any]]) -> None:
+    result = tool_get_contradictions({}, pg, _INTERNAL)
+    assert "contradictions" in result
+    assert isinstance(result["contradictions"], list)

@@ -78,6 +78,7 @@ markers = [
     "phase13: Phase 13 normalization and promotion",
     "phase14: Phase 14 observability",
     "phase15: Phase 15 eval harness",
+    "integration: End-to-end integration tests (require live Postgres)",
 ]
 
 [tool.coverage.run]

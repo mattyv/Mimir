@@ -9,6 +9,22 @@ on:
 jobs:
   lint-type-test:
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: root
+          POSTGRES_DB: mimir_test
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - uses: actions/checkout@v4
 
@@ -28,8 +44,10 @@ jobs:
       - name: Mypy type check
         run: mypy --strict src/
 
-      - name: Run tests with coverage
-        run: pytest -m "phase0 or phase1" --cov=src/mimir --cov-report=term-missing --cov-fail-under=95
+      - name: Run all phase tests with coverage
+        run: pytest --cov=src/mimir --cov-report=term-missing --cov-fail-under=95
+        env:
+          DATABASE_URL: "postgresql://root@localhost:5432/mimir_test"
 
       - name: Verify eval checksum
         run: |

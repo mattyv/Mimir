@@ -9,6 +9,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from mimir.models.base import GroundingTier
+
 
 class SPARQLClient(Protocol):
     """Minimal interface satisfied by SPARQLWrapper and FakeSPARQL."""
@@ -62,8 +64,9 @@ def ground_entity(
     client: SPARQLClient,
     conn: Any,
 ) -> WikidataMatch | None:
-    """Find a Wikidata match and persist the QID into the entity's payload.
+    """Find a Wikidata match and persist QID + updated grounding tier into payload.
 
+    Tier is advanced to wikidata_linked (or fully_grounded if source_cited already).
     Returns the match (or None) without raising on SPARQL errors.
     """
     try:
@@ -74,13 +77,42 @@ def ground_entity(
     if match is None:
         return None
 
+    # Determine new tier — only advance, never retreat
+    row = conn.execute(
+        "SELECT payload FROM entities WHERE id = %s",
+        (entity_id,),
+    ).fetchone()
+
+    current_tier_str = "ungrounded"
+    if row:
+        current_tier_str = (
+            row["payload"].get("grounding", {}).get("tier", "ungrounded")
+            if isinstance(row["payload"], dict)
+            else "ungrounded"
+        )
+
+    _tier_order = [t.value for t in GroundingTier]
+    current_idx = _tier_order.index(current_tier_str) if current_tier_str in _tier_order else 0
+
+    new_tier = GroundingTier.wikidata_linked
+    if current_idx >= _tier_order.index(GroundingTier.wikidata_linked.value):
+        new_tier = GroundingTier.fully_grounded
+
     conn.execute(
         """
         UPDATE entities
-        SET payload = payload || jsonb_build_object('wikidata_qid', %s::text,
-                                                    'wikidata_label', %s::text)
+        SET payload = payload || jsonb_build_object(
+              'wikidata_qid', %s::text,
+              'wikidata_label', %s::text,
+              'grounding', jsonb_build_object(
+                  'tier', %s::text,
+                  'wikidata_id', %s::text,
+                  'depth', 0,
+                  'stop_reason', 'wikidata_matched'
+              )
+            )
         WHERE id = %s
         """,
-        (match.qid, match.label, entity_id),
+        (match.qid, match.label, new_tier.value, match.qid, entity_id),
     )
     return match

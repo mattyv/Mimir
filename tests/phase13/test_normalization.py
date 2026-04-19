@@ -11,6 +11,7 @@ from mimir.normalization.normalizer import (
 )
 from mimir.normalization.promotion import (
     PromotionResult,
+    execute_promotion,
     is_provisional,
     promote_provisional,
     provisional_suffix,
@@ -180,3 +181,53 @@ def test_provisional_suffix_extracts_correctly() -> None:
 def test_provisional_suffix_raises_on_non_provisional() -> None:
     with pytest.raises(ValueError):
         provisional_suffix("auros:dependsOn")
+
+
+# ── execute_promotion ─────────────────────────────────────────────────────────
+
+
+@pytest.mark.phase13
+def test_execute_promotion_migrates_entity_type(pg: object) -> None:
+    import uuid
+    from datetime import UTC, datetime
+    from typing import Any
+
+    import psycopg
+
+    from mimir.models.base import Grounding, GroundingTier, Temporal, Visibility
+    from mimir.models.nodes import Entity
+    from mimir.persistence.repository import EntityRepository
+
+    conn: psycopg.Connection[dict[str, Any]] = pg  # type: ignore[assignment]
+    old_iri = "auros:provisional:experimental_svc"
+    new_iri = "auros:ExperimentalSvc"
+    eid = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"test_prom:{old_iri}"))
+    EntityRepository(conn).upsert(
+        Entity(
+            id=eid,
+            type=old_iri,
+            name="test_prom",
+            description="",
+            created_at=datetime(2026, 4, 19, tzinfo=UTC),
+            confidence=0.9,
+            grounding=Grounding(tier=GroundingTier.source_cited, depth=0, stop_reason="test"),
+            temporal=Temporal(valid_from=datetime(2026, 4, 19, tzinfo=UTC)),
+            visibility=Visibility(acl=["internal"], sensitivity="internal"),
+            vocabulary_version="0.1.0",
+        )
+    )
+    count = execute_promotion(old_iri, new_iri, conn)
+    assert count >= 1
+    row = EntityRepository(conn).get(eid)
+    assert row is not None
+    assert row["entity_type"] == new_iri
+
+
+@pytest.mark.phase13
+def test_execute_promotion_returns_zero_when_no_matches(pg: object) -> None:
+    from typing import Any
+
+    import psycopg
+    conn: psycopg.Connection[dict[str, Any]] = pg  # type: ignore[assignment]
+    count = execute_promotion("auros:provisional:ghost_iri", "auros:GhostType", conn)
+    assert count == 0

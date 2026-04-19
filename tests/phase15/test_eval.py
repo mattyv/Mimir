@@ -7,11 +7,13 @@ from pathlib import Path
 import pytest
 
 from mimir.eval.harness import (
+    ComparisonReport,
     EvalQuestion,
     EvalReport,
     EvalResult,
     checksum_file,
     load_questions,
+    run_comparison,
     run_eval,
 )
 from tests.conftest import FakeLLM
@@ -189,3 +191,96 @@ def test_eval_question_fields() -> None:
     q = EvalQuestion(id="FL-01", category="factual_lookup", question="Who owns X?")
     assert q.id == "FL-01"
     assert q.notes == ""
+
+
+# ── run_comparison (blind grading) ────────────────────────────────────────────
+
+
+@pytest.mark.phase15
+def test_run_comparison_returns_report() -> None:
+    questions = [EvalQuestion(id="T1", category="factual_lookup", question="Q?")]
+    llm_a = FakeLLM()
+    llm_b = FakeLLM()
+    report = run_comparison(questions, llm_a, llm_b)
+    assert isinstance(report, ComparisonReport)
+    assert report.total == 1
+    assert len(report.pairs) == 1
+
+
+@pytest.mark.phase15
+def test_run_comparison_pair_has_both_responses() -> None:
+    questions = [EvalQuestion(id="T1", category="factual_lookup", question="Q?")]
+    llm_a = FakeLLM()
+    llm_b = FakeLLM()
+    report = run_comparison(questions, llm_a, llm_b)
+    pair = report.pairs[0]
+    assert pair.response_a is not None
+    assert pair.response_b is not None
+
+
+@pytest.mark.phase15
+def test_run_comparison_with_judge() -> None:
+    questions = [EvalQuestion(id="T1", category="factual_lookup", question="Q?")]
+    llm_a = FakeLLM()
+    llm_b = FakeLLM()
+
+    def judge(q: EvalQuestion, x: str, y: str) -> tuple[float, float]:
+        return 3.0, 4.0
+
+    report = run_comparison(questions, llm_a, llm_b, judge=judge, seed=42)
+    assert report.scored == 1
+    pair = report.pairs[0]
+    assert pair.score_a is not None
+    assert pair.score_b is not None
+
+
+@pytest.mark.phase15
+def test_run_comparison_mean_scores() -> None:
+    questions = [
+        EvalQuestion(id="T1", category="factual_lookup", question="Q1?"),
+        EvalQuestion(id="T2", category="factual_lookup", question="Q2?"),
+    ]
+    llm_a = FakeLLM()
+    llm_b = FakeLLM()
+    scores = [(2.0, 4.0), (4.0, 2.0)]
+    call_count = [0]
+
+    def judge(q: EvalQuestion, x: str, y: str) -> tuple[float, float]:
+        pair = scores[call_count[0]]
+        call_count[0] += 1
+        return pair
+
+    report = run_comparison(questions, llm_a, llm_b, judge=judge, seed=0)
+    assert report.mean_score_a is not None
+    assert report.mean_score_b is not None
+
+
+@pytest.mark.phase15
+def test_run_comparison_no_judge_scores_are_none() -> None:
+    questions = [EvalQuestion(id="T1", category="factual_lookup", question="Q?")]
+    report = run_comparison(questions, FakeLLM(), FakeLLM())
+    pair = report.pairs[0]
+    assert pair.score_a is None
+    assert pair.score_b is None
+
+
+@pytest.mark.phase15
+def test_run_comparison_by_category() -> None:
+    questions = load_questions(_EVAL_PATH)
+    report = run_comparison(questions, FakeLLM(), FakeLLM())
+    cats = report.by_category()
+    assert "factual_lookup" in cats
+    assert len(cats) == 5
+
+
+@pytest.mark.phase15
+def test_comparison_report_labels() -> None:
+    report = run_comparison(
+        [EvalQuestion(id="T1", category="factual_lookup", question="Q?")],
+        FakeLLM(),
+        FakeLLM(),
+        label_a="llm_alone",
+        label_b="llm_with_graph",
+    )
+    assert report.label_a == "llm_alone"
+    assert report.label_b == "llm_with_graph"

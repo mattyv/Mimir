@@ -24,7 +24,15 @@ from typing import Any
 
 import psycopg
 
-from mimir.models.nodes import Entity, Observation, Property, Relationship
+from mimir.models.nodes import (
+    Constraint,
+    Decision,
+    Entity,
+    Observation,
+    Process,
+    Property,
+    Relationship,
+)
 from mimir.persistence.graph_version import bump_graph_version
 
 # ---------------------------------------------------------------------------
@@ -386,3 +394,245 @@ class ObservationRepository:
             params,
         ).fetchall()
         return [dict(r) for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# ConstraintRepository
+# ---------------------------------------------------------------------------
+
+
+class ConstraintRepository:
+    """CRUD + bitemporal queries for Constraint nodes."""
+
+    def __init__(self, conn: psycopg.Connection[dict[str, Any]]) -> None:
+        self._conn = conn
+
+    def insert(self, constraint: Constraint) -> int:
+        """Insert a Constraint row and return its auto-assigned id."""
+        version = bump_graph_version(self._conn)
+        payload = constraint.model_dump(
+            mode="json",
+            exclude={"entity_id", "constraint_type", "condition", "threshold", "temporal", "vocabulary_version"},
+        )
+        row = self._conn.execute(
+            """
+            INSERT INTO constraints
+                (entity_id, constraint_type, condition, threshold,
+                 valid_from, valid_until, vocabulary_version, payload, graph_version)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+            """,
+            (
+                constraint.entity_id,
+                constraint.constraint_type,
+                constraint.condition,
+                json.dumps(constraint.threshold),
+                constraint.temporal.valid_from,
+                constraint.temporal.valid_until,
+                constraint.vocabulary_version,
+                json.dumps(payload),
+                version,
+            ),
+        ).fetchone()
+        return int(row["id"]) if row else 0
+
+    def list_for_entity(
+        self,
+        entity_id: str,
+        *,
+        as_of: datetime | None = None,
+        at_version: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """Return constraint rows for a given entity."""
+        a_clause, a_params = _as_of_clause("c", as_of)
+        v_clause, v_params = _version_clause("c", at_version)
+        where, params = _build_where(
+            [("c.entity_id = %s", [entity_id]), (a_clause, a_params), (v_clause, v_params)]
+        )
+        rows = self._conn.execute(
+            f"SELECT * FROM constraints c {where} ORDER BY c.id",
+            params,
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def delete(self, constraint_id: int) -> bool:
+        """Hard-delete a constraint row. Returns True if deleted."""
+        result = self._conn.execute(
+            "DELETE FROM constraints WHERE id = %s RETURNING id",
+            (constraint_id,),
+        )
+        return int(result.rowcount) > 0
+
+
+# ---------------------------------------------------------------------------
+# ProcessRepository
+# ---------------------------------------------------------------------------
+
+
+class ProcessRepository:
+    """CRUD + bitemporal queries for Process nodes."""
+
+    def __init__(self, conn: psycopg.Connection[dict[str, Any]]) -> None:
+        self._conn = conn
+
+    def upsert(self, process: Process) -> bool:
+        """Insert or update a Process row. Returns True if inserted."""
+        version = bump_graph_version(self._conn)
+        name_normalized = unicodedata.normalize("NFC", process.name).casefold().strip()
+        payload = process.model_dump(
+            mode="json",
+            exclude={"id", "name", "stages", "inputs", "outputs", "slo", "temporal", "vocabulary_version"},
+        )
+        result = self._conn.execute(
+            """
+            INSERT INTO processes
+                (id, name, name_normalized, stages, inputs, outputs, slo,
+                 valid_from, valid_until, vocabulary_version, payload, graph_version)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (name_normalized)
+            DO UPDATE SET
+                name               = EXCLUDED.name,
+                stages             = EXCLUDED.stages,
+                inputs             = EXCLUDED.inputs,
+                outputs            = EXCLUDED.outputs,
+                slo                = EXCLUDED.slo,
+                valid_from         = EXCLUDED.valid_from,
+                valid_until        = EXCLUDED.valid_until,
+                vocabulary_version = EXCLUDED.vocabulary_version,
+                payload            = EXCLUDED.payload,
+                graph_version      = EXCLUDED.graph_version
+            RETURNING (xmax = 0) AS inserted
+            """,
+            (
+                process.id,
+                process.name,
+                name_normalized,
+                json.dumps(process.stages),
+                json.dumps(process.inputs),
+                json.dumps(process.outputs),
+                process.slo,
+                process.temporal.valid_from,
+                process.temporal.valid_until,
+                process.vocabulary_version,
+                json.dumps(payload),
+                version,
+            ),
+        )
+        row = result.fetchone()
+        return bool(row["inserted"]) if row else True
+
+    def get(self, process_id: str, *, as_of: datetime | None = None) -> dict[str, Any] | None:
+        """Fetch a process by id."""
+        a_clause, a_params = _as_of_clause("p", as_of)
+        where, params = _build_where([("p.id = %s", [process_id]), (a_clause, a_params)])
+        row = self._conn.execute(
+            f"SELECT * FROM processes p {where} LIMIT 1",
+            params,
+        ).fetchone()
+        return dict(row) if row else None
+
+    def list_active(
+        self, *, as_of: datetime | None = None, limit: int = 100
+    ) -> list[dict[str, Any]]:
+        """Return active process rows."""
+        a_clause, a_params = _as_of_clause("p", as_of)
+        where, params = _build_where([(a_clause, a_params)])
+        rows = self._conn.execute(
+            f"SELECT * FROM processes p {where} ORDER BY p.name LIMIT %s",
+            params + [limit],
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def delete(self, process_id: str) -> bool:
+        """Hard-delete a process. Returns True if deleted."""
+        result = self._conn.execute(
+            "DELETE FROM processes WHERE id = %s RETURNING id",
+            (process_id,),
+        )
+        return int(result.rowcount) > 0
+
+
+# ---------------------------------------------------------------------------
+# DecisionRepository
+# ---------------------------------------------------------------------------
+
+
+class DecisionRepository:
+    """CRUD + bitemporal queries for Decision nodes."""
+
+    def __init__(self, conn: psycopg.Connection[dict[str, Any]]) -> None:
+        self._conn = conn
+
+    def upsert(self, decision: Decision) -> bool:
+        """Insert or update a Decision row. Returns True if inserted."""
+        version = bump_graph_version(self._conn)
+        payload = decision.model_dump(
+            mode="json",
+            exclude={"id", "what", "why", "tradeoffs", "when", "who", "temporal", "vocabulary_version"},
+        )
+        result = self._conn.execute(
+            """
+            INSERT INTO decisions
+                (id, what, why, tradeoffs, decided_when, who,
+                 valid_from, valid_until, vocabulary_version, payload, graph_version)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (id)
+            DO UPDATE SET
+                what               = EXCLUDED.what,
+                why                = EXCLUDED.why,
+                tradeoffs          = EXCLUDED.tradeoffs,
+                decided_when       = EXCLUDED.decided_when,
+                who                = EXCLUDED.who,
+                valid_from         = EXCLUDED.valid_from,
+                valid_until        = EXCLUDED.valid_until,
+                vocabulary_version = EXCLUDED.vocabulary_version,
+                payload            = EXCLUDED.payload,
+                graph_version      = EXCLUDED.graph_version
+            RETURNING (xmax = 0) AS inserted
+            """,
+            (
+                decision.id,
+                decision.what,
+                decision.why,
+                json.dumps(decision.tradeoffs),
+                decision.when,
+                json.dumps(decision.who),
+                decision.temporal.valid_from,
+                decision.temporal.valid_until,
+                decision.vocabulary_version,
+                json.dumps(payload),
+                version,
+            ),
+        )
+        row = result.fetchone()
+        return bool(row["inserted"]) if row else True
+
+    def get(self, decision_id: str, *, as_of: datetime | None = None) -> dict[str, Any] | None:
+        """Fetch a decision by id."""
+        a_clause, a_params = _as_of_clause("d", as_of)
+        where, params = _build_where([("d.id = %s", [decision_id]), (a_clause, a_params)])
+        row = self._conn.execute(
+            f"SELECT * FROM decisions d {where} LIMIT 1",
+            params,
+        ).fetchone()
+        return dict(row) if row else None
+
+    def list_active(
+        self, *, as_of: datetime | None = None, limit: int = 100
+    ) -> list[dict[str, Any]]:
+        """Return active decision rows, newest first."""
+        a_clause, a_params = _as_of_clause("d", as_of)
+        where, params = _build_where([(a_clause, a_params)])
+        rows = self._conn.execute(
+            f"SELECT * FROM decisions d {where} ORDER BY d.decided_when DESC LIMIT %s",
+            params + [limit],
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def delete(self, decision_id: str) -> bool:
+        """Hard-delete a decision. Returns True if deleted."""
+        result = self._conn.execute(
+            "DELETE FROM decisions WHERE id = %s RETURNING id",
+            (decision_id,),
+        )
+        return int(result.rowcount) > 0
