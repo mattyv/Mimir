@@ -49,6 +49,12 @@ def test_concurrent_upsert_same_name_type(_pg_schema: None) -> None:
     n_threads = 4
     errors: list[Exception] = []
 
+    # Record initial version so we can restore it after (upsert bumps graph_version)
+    with psycopg.connect(_DSN, row_factory=dict_row) as _vc:
+        init_ver: int = _vc.execute("SELECT version FROM graph_meta WHERE id=1").fetchone()[
+            "version"
+        ]  # type: ignore[index]
+
     def worker(i: int) -> None:
         try:
             with psycopg.connect(_DSN, row_factory=dict_row, autocommit=False) as conn:
@@ -75,9 +81,10 @@ def test_concurrent_upsert_same_name_type(_pg_schema: None) -> None:
         assert row is not None
         assert row["n"] == 1, f"Expected 1 entity row but got {row['n']}"
 
-    # Cleanup this test's rows so subsequent tests start clean
+    # Cleanup: remove test entities and reset version to pre-test value
     with psycopg.connect(_DSN, row_factory=dict_row) as cleanup:
         cleanup.execute("DELETE FROM entities WHERE name_normalized = 'concurrent shared'")
+        cleanup.execute("UPDATE graph_meta SET version = %s WHERE id = 1", (init_ver,))
 
 
 def test_concurrent_graph_version_monotonic(_pg_schema: None) -> None:
@@ -114,6 +121,11 @@ def test_concurrent_graph_version_monotonic(_pg_schema: None) -> None:
     assert len(versions) == n_threads
     # All versions must be unique — the row-level lock on graph_meta serializes
     assert len(set(versions)) == n_threads, f"Duplicate versions detected: {sorted(versions)}"
+
+    # Cleanup: reset graph_meta version to pre-test value
+    min_ver = min(versions) - 1
+    with psycopg.connect(_DSN, row_factory=dict_row) as cleanup:
+        cleanup.execute("UPDATE graph_meta SET version = %s WHERE id = 1", (min_ver,))
 
 
 def test_isolation_repeatable_read_sees_snapshot(_pg_schema: None) -> None:
