@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import os
+
 import pytest
 
 pytestmark = pytest.mark.phase2
 
-_DSN = "dbname=mimir_test user=root"
+_DSN = os.environ.get("DATABASE_URL", "dbname=mimir_test user=root")
 
 
 def test_init_pool_creates_pool() -> None:

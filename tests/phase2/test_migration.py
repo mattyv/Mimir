@@ -10,18 +10,31 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
 pytestmark = pytest.mark.phase2
 
-_ENV = {**os.environ, "MIMIR_DATABASE_URL": "postgresql+psycopg://root@/mimir_test"}
+_PROJECT_ROOT = str(Path(__file__).parent.parent.parent)
+
+# Convert DATABASE_URL (plain psycopg DSN or postgres:// URL) to the
+# SQLAlchemy+psycopg URL that alembic's env.py expects.
+_raw_db_url = os.environ.get("DATABASE_URL", "")
+if _raw_db_url.startswith("postgresql://"):
+    _alembic_url = _raw_db_url.replace("postgresql://", "postgresql+psycopg://", 1)
+elif _raw_db_url.startswith("postgresql+psycopg://"):
+    _alembic_url = _raw_db_url
+else:
+    _alembic_url = "postgresql+psycopg://root@/mimir_test"
+
+_ENV = {**os.environ, "MIMIR_DATABASE_URL": _alembic_url}
 
 
 def _run_alembic(*args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, "-m", "alembic", *args],
-        cwd="/home/user/Mimir",
+        cwd=_PROJECT_ROOT,
         env=_ENV,
         capture_output=True,
         text=True,

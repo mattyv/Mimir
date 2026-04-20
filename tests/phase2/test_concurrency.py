@@ -6,6 +6,7 @@ converge to a single row rather than raising or inserting duplicates.
 
 from __future__ import annotations
 
+import os
 import threading
 from datetime import UTC, datetime
 
@@ -20,7 +21,7 @@ from mimir.persistence.repository import EntityRepository
 pytestmark = pytest.mark.phase2
 
 _NOW = datetime(2026, 4, 19, tzinfo=UTC)
-_DSN = "dbname=mimir_test user=root"
+_DSN = os.environ.get("DATABASE_URL", "dbname=mimir_test user=root")
 
 
 def _make_entity(entity_id: str, name: str = "Shared Service") -> Entity:
