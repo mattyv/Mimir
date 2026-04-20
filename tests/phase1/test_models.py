@@ -114,7 +114,9 @@ def test_grounding_valid() -> None:
 
 
 def test_grounding_wikidata_id_optional() -> None:
-    g = Grounding(tier=GroundingTier.wikidata_linked, depth=2, stop_reason="found", wikidata_id="Q42")
+    g = Grounding(
+        tier=GroundingTier.wikidata_linked, depth=2, stop_reason="found", wikidata_id="Q42"
+    )
     assert g.wikidata_id == "Q42"
 
 
@@ -306,8 +308,14 @@ def test_relationship_predicate_validated() -> None:
 
 def test_observation_closed_vocabulary_valid() -> None:
     for obs_type in (
-        "strength", "risk", "anti_pattern", "maturity", "smell",
-        "opportunity", "inconsistency", "functional_state",
+        "strength",
+        "risk",
+        "anti_pattern",
+        "maturity",
+        "smell",
+        "opportunity",
+        "inconsistency",
+        "functional_state",
     ):
         o = Observation(
             entity_id="svc",
@@ -426,8 +434,7 @@ _VALID_IRI_ST = st.one_of(
 )
 
 
-@given(dt1=st.datetimes(timezones=st.just(UTC)),
-       dt2=st.datetimes(timezones=st.just(UTC)))
+@given(dt1=st.datetimes(timezones=st.just(UTC)), dt2=st.datetimes(timezones=st.just(UTC)))
 def test_temporal_ordering_preserved(dt1: datetime, dt2: datetime) -> None:
     """valid_from <= valid_until is always preserved in well-formed Temporal objects."""
     valid_from = min(dt1, dt2)
@@ -436,8 +443,7 @@ def test_temporal_ordering_preserved(dt1: datetime, dt2: datetime) -> None:
     assert t.valid_from <= t.valid_until  # type: ignore[operator]
 
 
-@given(dt1=st.datetimes(timezones=st.just(UTC)),
-       dt2=st.datetimes(timezones=st.just(UTC)))
+@given(dt1=st.datetimes(timezones=st.just(UTC)), dt2=st.datetimes(timezones=st.just(UTC)))
 @settings(max_examples=100)
 def test_temporal_reversed_ordering_raises(dt1: datetime, dt2: datetime) -> None:
     """Temporal raises when valid_from > valid_until."""
@@ -455,7 +461,11 @@ def test_entity_accepts_any_valid_iri_type(iri: str) -> None:
 
 
 @given(
-    e_id=st.text(min_size=1, max_size=20, alphabet=st.characters(whitelist_categories=("Ll", "Nd"), whitelist_characters="_")),
+    e_id=st.text(
+        min_size=1,
+        max_size=20,
+        alphabet=st.characters(whitelist_categories=("Ll", "Nd"), whitelist_characters="_"),
+    ),
 )
 def test_entity_id_stored_as_given(e_id: str) -> None:
     """Entity id is stored as provided (no normalisation at model level)."""

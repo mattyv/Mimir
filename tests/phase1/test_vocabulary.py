@@ -18,7 +18,9 @@ from mimir.vocabulary.loader import (
 
 pytestmark = pytest.mark.phase1
 
-_VOCAB_PATH = Path(__file__).parent.parent.parent / "src" / "mimir" / "vocabulary" / "vocabulary.yaml"
+_VOCAB_PATH = (
+    Path(__file__).parent.parent.parent / "src" / "mimir" / "vocabulary" / "vocabulary.yaml"
+)
 
 
 # ── load_vocabulary ────────────────────────────────────────────────────────────

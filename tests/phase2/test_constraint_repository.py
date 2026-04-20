@@ -56,13 +56,17 @@ def seeded_entity(pg: psycopg.Connection[dict[str, Any]]) -> str:
     return "ent_001"
 
 
-def test_constraint_insert_returns_id(pg: psycopg.Connection[dict[str, Any]], seeded_entity: str) -> None:
+def test_constraint_insert_returns_id(
+    pg: psycopg.Connection[dict[str, Any]], seeded_entity: str
+) -> None:
     repo = ConstraintRepository(pg)
     cid = repo.insert(_constraint())
     assert cid > 0
 
 
-def test_constraint_list_for_entity(pg: psycopg.Connection[dict[str, Any]], seeded_entity: str) -> None:
+def test_constraint_list_for_entity(
+    pg: psycopg.Connection[dict[str, Any]], seeded_entity: str
+) -> None:
     repo = ConstraintRepository(pg)
     repo.insert(_constraint())
     rows = repo.list_for_entity("ent_001")
@@ -70,7 +74,9 @@ def test_constraint_list_for_entity(pg: psycopg.Connection[dict[str, Any]], seed
     assert rows[0]["constraint_type"] == "performance"
 
 
-def test_constraint_list_empty_for_unknown_entity(pg: psycopg.Connection[dict[str, Any]], seeded_entity: str) -> None:
+def test_constraint_list_empty_for_unknown_entity(
+    pg: psycopg.Connection[dict[str, Any]], seeded_entity: str
+) -> None:
     repo = ConstraintRepository(pg)
     rows = repo.list_for_entity("no_such_entity")
     assert rows == []
@@ -88,7 +94,9 @@ def test_constraint_delete_missing_returns_false(pg: psycopg.Connection[dict[str
     assert repo.delete(99999) is False
 
 
-def test_constraint_multiple_types(pg: psycopg.Connection[dict[str, Any]], seeded_entity: str) -> None:
+def test_constraint_multiple_types(
+    pg: psycopg.Connection[dict[str, Any]], seeded_entity: str
+) -> None:
     repo = ConstraintRepository(pg)
     for ctype in ("performance", "availability", "legal", "physical", "social"):
         c = Constraint(

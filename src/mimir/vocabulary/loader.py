@@ -110,8 +110,7 @@ class ProvisionalTracker:
     def is_promotion_eligible(self) -> bool:
         """True when use count and source diversity meet promotion thresholds."""
         return (
-            self.use_count >= PROMOTION_MIN_USES
-            and len(self.source_ids) >= PROMOTION_MIN_SOURCES
+            self.use_count >= PROMOTION_MIN_USES and len(self.source_ids) >= PROMOTION_MIN_SOURCES
         )
 
 
@@ -134,9 +133,7 @@ def load_vocabulary(path: str | Path) -> Vocabulary:
         subclass_of: str | None = entry.get("subclass_of")
         if subclass_of is not None:
             validate_iri(subclass_of)
-        entity_types.append(
-            EntityTypeEntry(iri=iri, label=entry["label"], subclass_of=subclass_of)
-        )
+        entity_types.append(EntityTypeEntry(iri=iri, label=entry["label"], subclass_of=subclass_of))
 
     predicates: list[PredicateEntry] = []
     for entry in raw.get("predicates", []):

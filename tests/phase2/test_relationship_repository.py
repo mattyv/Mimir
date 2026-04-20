@@ -106,17 +106,19 @@ def test_relationship_list_as_of_excludes_expired(pg: psycopg.Connection[Any]) -
     _seed_entity(pg, "svc_a", "Alpha")
     _seed_entity(pg, "svc_b", "Beta")
     repo = RelationshipRepository(pg)
-    repo.insert(Relationship(
-        subject_id="svc_a",
-        predicate="auros:dependsOn",
-        object_id="svc_b",
-        confidence=0.8,
-        source=_source(),
-        grounding=_grounding(),
-        temporal=_temporal(valid_from=_YESTERDAY, valid_until=_YESTERDAY + timedelta(hours=1)),
-        visibility=_visibility(),
-        vocabulary_version="0.1.0",
-    ))
+    repo.insert(
+        Relationship(
+            subject_id="svc_a",
+            predicate="auros:dependsOn",
+            object_id="svc_b",
+            confidence=0.8,
+            source=_source(),
+            grounding=_grounding(),
+            temporal=_temporal(valid_from=_YESTERDAY, valid_until=_YESTERDAY + timedelta(hours=1)),
+            visibility=_visibility(),
+            vocabulary_version="0.1.0",
+        )
+    )
     rows = repo.list_for_subject("svc_a", as_of=_NOW)
     assert rows == []
 

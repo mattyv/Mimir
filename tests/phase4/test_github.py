@@ -83,9 +83,7 @@ def test_fetch_readme_returns_chunk() -> None:
 @pytest.mark.phase4
 @respx.mock
 def test_fetch_readme_not_found_returns_none() -> None:
-    respx.get(f"{_API_BASE}/repos/example/no_readme/readme").mock(
-        return_value=httpx.Response(404)
-    )
+    respx.get(f"{_API_BASE}/repos/example/no_readme/readme").mock(return_value=httpx.Response(404))
     chunk = _adapter().fetch_readme("example", "no_readme")
     assert chunk is None
 

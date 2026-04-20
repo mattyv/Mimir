@@ -113,8 +113,14 @@ def test_all_observation_types_storable(pg: psycopg.Connection[Any]) -> None:
     _seed_entity(pg)
     repo = ObservationRepository(pg)
     for obs_type in (
-        "strength", "risk", "anti_pattern", "maturity", "smell",
-        "opportunity", "inconsistency", "functional_state",
+        "strength",
+        "risk",
+        "anti_pattern",
+        "maturity",
+        "smell",
+        "opportunity",
+        "inconsistency",
+        "functional_state",
     ):
         repo.insert(_observation(obs_type))
     rows = repo.list_for_entity("svc_001")

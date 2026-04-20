@@ -76,9 +76,7 @@ def test_concurrent_upsert_same_name_type(_pg_schema: None) -> None:
 
     # Cleanup this test's rows so subsequent tests start clean
     with psycopg.connect(_DSN, row_factory=dict_row) as cleanup:
-        cleanup.execute(
-            "DELETE FROM entities WHERE name_normalized = 'concurrent shared'"
-        )
+        cleanup.execute("DELETE FROM entities WHERE name_normalized = 'concurrent shared'")
 
 
 def test_concurrent_graph_version_monotonic(_pg_schema: None) -> None:
@@ -97,6 +95,7 @@ def test_concurrent_graph_version_monotonic(_pg_schema: None) -> None:
             with psycopg.connect(_DSN, row_factory=dict_row, autocommit=False) as conn:
                 conn.execute("BEGIN")
                 from mimir.persistence.graph_version import bump_graph_version
+
                 v = bump_graph_version(conn)
                 conn.commit()
                 with lock:
@@ -122,7 +121,9 @@ def test_isolation_repeatable_read_sees_snapshot(_pg_schema: None) -> None:
         reader.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
         reader.execute("BEGIN")
         # Read initial state
-        n_before = reader.execute("SELECT COUNT(*) AS n FROM entities WHERE id LIKE 'iso_%'").fetchone()["n"]  # type: ignore[index]
+        n_before = reader.execute(
+            "SELECT COUNT(*) AS n FROM entities WHERE id LIKE 'iso_%'"
+        ).fetchone()["n"]  # type: ignore[index]
 
         # Another connection inserts an entity after the reader opened its transaction
         with psycopg.connect(_DSN, row_factory=dict_row, autocommit=True) as writer:
@@ -138,7 +139,9 @@ def test_isolation_repeatable_read_sees_snapshot(_pg_schema: None) -> None:
             )
 
         # Reader should still see the old count (snapshot isolation)
-        n_after = reader.execute("SELECT COUNT(*) AS n FROM entities WHERE id LIKE 'iso_%'").fetchone()["n"]  # type: ignore[index]
+        n_after = reader.execute(
+            "SELECT COUNT(*) AS n FROM entities WHERE id LIKE 'iso_%'"
+        ).fetchone()["n"]  # type: ignore[index]
         reader.rollback()
 
     assert n_before == n_after, (

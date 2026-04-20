@@ -193,7 +193,9 @@ def run_comparison(
     pair_map: dict[str, tuple[str, str]] = {q.id: (a, b) for q, a, b in raw_pairs}
 
     for q, resp_x, resp_y in shuffled:
-        pair = ComparisonPair(question=q, response_a=pair_map[q.id][0], response_b=pair_map[q.id][1])
+        pair = ComparisonPair(
+            question=q, response_a=pair_map[q.id][0], response_b=pair_map[q.id][1]
+        )
 
         if judge is not None:
             score_x, score_y = judge(q, resp_x, resp_y)

@@ -40,7 +40,9 @@ def _llm(content: str, spine_payload: dict, obs_payload: dict | None = None) -> 
 @pytest.mark.phase5
 def test_pipeline_upserts_entities(pg: psycopg.Connection[dict[str, Any]]) -> None:
     content = "The OMMS service handles options market making."
-    payload = {"entities": [{"name": "OMMS", "type": "auros:TradingService", "description": "Options MM"}]}
+    payload = {
+        "entities": [{"name": "OMMS", "type": "auros:TradingService", "description": "Options MM"}]
+    }
     result = process_chunk(_chunk(content), _llm(content, payload), pg)
     assert result.entities_upserted == 1
     assert EntityRepository(pg).count() >= 1
@@ -66,17 +68,23 @@ def test_pipeline_inserts_relationships(pg: psycopg.Connection[dict[str, Any]]) 
 def test_pipeline_inserts_observations(pg: psycopg.Connection[dict[str, Any]]) -> None:
     content = "OMMS has high SLO breach risk."
     spine = {"entities": [{"name": "OMMS", "type": "auros:TradingService"}]}
-    obs = {"observations": [{"entity_name": "OMMS", "type": "risk", "description": "SLO breach risk"}]}
+    obs = {
+        "observations": [{"entity_name": "OMMS", "type": "risk", "description": "SLO breach risk"}]
+    }
     result = process_chunk(_chunk(content), _llm(content, spine, obs), pg)
     assert result.observations_inserted == 1
 
 
 @pytest.mark.phase5
-def test_pipeline_skips_relationship_with_unknown_entity(pg: psycopg.Connection[dict[str, Any]]) -> None:
+def test_pipeline_skips_relationship_with_unknown_entity(
+    pg: psycopg.Connection[dict[str, Any]],
+) -> None:
     content = "service_a connects to unknown_b."
     payload = {
         "entities": [{"name": "service_a", "type": "auros:TradingService"}],
-        "relationships": [{"subject": "service_a", "predicate": "auros:connects", "object": "unknown_b"}],
+        "relationships": [
+            {"subject": "service_a", "predicate": "auros:connects", "object": "unknown_b"}
+        ],
     }
     result = process_chunk(_chunk(content), _llm(content, payload), pg)
     assert result.relationships_inserted == 0

@@ -189,6 +189,6 @@ def test_polarity_violation_attributes() -> None:
 
 @pytest.mark.phase9
 def test_polarity_pairs_symmetric() -> None:
-    assert are_polarity_opposites("auros:dependsOn", "auros:independentOf") == are_polarity_opposites(
-        "auros:independentOf", "auros:dependsOn"
-    )
+    assert are_polarity_opposites(
+        "auros:dependsOn", "auros:independentOf"
+    ) == are_polarity_opposites("auros:independentOf", "auros:dependsOn")

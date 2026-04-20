@@ -40,6 +40,7 @@ def _chunk(content: str) -> Chunk:
 def _llm_with_response(data: dict) -> FakeLLM:
     llm = FakeLLM()
     from mimir.crawler.prompts import build_extraction_prompt
+
     prompt = build_extraction_prompt("OMMS is owned by the APAC team.")
     llm.set_response(prompt, json.dumps(data))
     return llm
@@ -63,6 +64,7 @@ def test_extract_parses_entities() -> None:
     llm = FakeLLM()
     chunk = _chunk("OMMS is owned by the APAC team.")
     from mimir.crawler.prompts import build_extraction_prompt
+
     llm.set_response(build_extraction_prompt(chunk.content), json.dumps(payload))
     result = extract(chunk, llm)
     assert len(result.entities) == 1
@@ -84,6 +86,7 @@ def test_extract_parses_relationships() -> None:
     llm = FakeLLM()
     chunk = _chunk("panic_server depends on the risk engine.")
     from mimir.crawler.prompts import build_extraction_prompt
+
     llm.set_response(build_extraction_prompt(chunk.content), json.dumps(payload))
     result = extract(chunk, llm)
     assert len(result.relationships) == 1
@@ -94,13 +97,12 @@ def test_extract_parses_relationships() -> None:
 def test_extract_parses_observations() -> None:
     payload = {
         "entities": [{"name": "OMMS", "type": "auros:TradingService"}],
-        "observations": [
-            {"entity_name": "OMMS", "type": "risk", "description": "SLO breach risk"}
-        ],
+        "observations": [{"entity_name": "OMMS", "type": "risk", "description": "SLO breach risk"}],
     }
     llm = FakeLLM()
     chunk = _chunk("OMMS has SLO breach risk.")
     from mimir.crawler.prompts import build_extraction_prompt
+
     llm.set_response(build_extraction_prompt(chunk.content), json.dumps(payload))
     result = extract(chunk, llm)
     assert len(result.observations) == 1
@@ -112,6 +114,7 @@ def test_extract_invalid_json_sets_parse_error() -> None:
     llm = FakeLLM()
     chunk = _chunk("some content")
     from mimir.crawler.prompts import build_extraction_prompt
+
     llm.set_response(build_extraction_prompt(chunk.content), "not json at all {{{")
     result = extract(chunk, llm)
     assert result.parse_error is not None
@@ -123,6 +126,7 @@ def test_extract_empty_response_returns_empty_result() -> None:
     llm = FakeLLM()
     chunk = _chunk("some content")
     from mimir.crawler.prompts import build_extraction_prompt
+
     llm.set_response(build_extraction_prompt(chunk.content), "{}")
     result = extract(chunk, llm)
     assert result.entities == []
@@ -132,14 +136,12 @@ def test_extract_empty_response_returns_empty_result() -> None:
 @pytest.mark.phase5
 def test_extract_source_type_preserved() -> None:
     llm = FakeLLM()
-    chunk = Chunk(
-        id="gh_001", source_type="github", content="readme content", retrieved_at=_NOW
-    )
+    chunk = Chunk(id="gh_001", source_type="github", content="readme content", retrieved_at=_NOW)
     from mimir.crawler.prompts import build_extraction_prompt
+
     llm.set_response(build_extraction_prompt(chunk.content), "{}")
     result = extract(chunk, llm)
     assert result.source_type == "github"
-
 
 
 # ── Three-pass extractor tests ────────────────────────────────────────────────
@@ -178,9 +180,18 @@ def test_extract_grounding_candidates_returns_matches() -> None:
     llm = FakeLLM()
     entity_list = "- TDD (auros:provisional:methodology)"
     prompt = build_grounding_candidates_prompt(content, entity_list)
-    response = json.dumps({"candidates": [
-        {"entity_name": "TDD", "wikidata_qid": "Q7838228", "label": "test-driven development", "category": "methodology"}
-    ]})
+    response = json.dumps(
+        {
+            "candidates": [
+                {
+                    "entity_name": "TDD",
+                    "wikidata_qid": "Q7838228",
+                    "label": "test-driven development",
+                    "category": "methodology",
+                }
+            ]
+        }
+    )
     llm.set_response(prompt, response)
     candidates = extract_grounding_candidates(_chunk(content), llm, [entity])
     assert len(candidates) == 1
@@ -210,7 +221,9 @@ def test_extract_grounding_candidates_empty_when_no_entities() -> None:
 def test_extract_observations_returns_obs() -> None:
     content = "OMMS has SLO breach risk."
     llm = FakeLLM()
-    obs_data = {"observations": [{"entity_name": "OMMS", "type": "risk", "description": "SLO breach"}]}
+    obs_data = {
+        "observations": [{"entity_name": "OMMS", "type": "risk", "description": "SLO breach"}]
+    }
     llm.set_response(build_observations_prompt(content), json.dumps(obs_data))
     obs = extract_observations(_chunk(content), llm)
     assert len(obs) == 1
@@ -240,7 +253,11 @@ def test_extract_three_pass_combines_spine_and_observations() -> None:
             {"subject": "panic_server", "predicate": "auros:dependsOn", "object": "risk_engine"}
         ],
     }
-    obs = {"observations": [{"entity_name": "panic_server", "type": "risk", "description": "High latency"}]}
+    obs = {
+        "observations": [
+            {"entity_name": "panic_server", "type": "risk", "description": "High latency"}
+        ]
+    }
     llm.set_response(build_spine_prompt(content), json.dumps(spine))
     llm.set_response(build_observations_prompt(content), json.dumps(obs))
     result = extract_three_pass(_chunk(content), llm)
@@ -279,13 +296,24 @@ def test_extract_three_pass_obs_error_is_graceful() -> None:
 def test_extract_three_pass_grounding_candidates_populated() -> None:
     content = "We use TDD for all our tests."
     llm = FakeLLM()
-    spine = {"entities": [{"name": "TDD", "type": "auros:provisional:methodology", "description": ""}]}
+    spine = {
+        "entities": [{"name": "TDD", "type": "auros:provisional:methodology", "description": ""}]
+    }
     llm.set_response(build_spine_prompt(content), json.dumps(spine))
     entity_list = "- TDD (auros:provisional:methodology)"
     grounding_prompt = build_grounding_candidates_prompt(content, entity_list)
-    grounding_response = json.dumps({"candidates": [
-        {"entity_name": "TDD", "wikidata_qid": "Q7838228", "label": "test-driven development", "category": "methodology"}
-    ]})
+    grounding_response = json.dumps(
+        {
+            "candidates": [
+                {
+                    "entity_name": "TDD",
+                    "wikidata_qid": "Q7838228",
+                    "label": "test-driven development",
+                    "category": "methodology",
+                }
+            ]
+        }
+    )
     llm.set_response(grounding_prompt, grounding_response)
     result = extract_three_pass(_chunk(content), llm)
     assert len(result.grounding_candidates) == 1

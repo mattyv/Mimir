@@ -151,8 +151,13 @@ def test_get_registry_returns_same_instance() -> None:
 def test_json_formatter_produces_valid_json(caplog: pytest.LogCaptureFixture) -> None:
     formatter = JsonFormatter()
     record = logging.LogRecord(
-        name="test", level=logging.INFO, pathname="", lineno=0,
-        msg="hello world", args=(), exc_info=None,
+        name="test",
+        level=logging.INFO,
+        pathname="",
+        lineno=0,
+        msg="hello world",
+        args=(),
+        exc_info=None,
     )
     output = formatter.format(record)
     parsed = json.loads(output)
@@ -165,8 +170,13 @@ def test_json_formatter_produces_valid_json(caplog: pytest.LogCaptureFixture) ->
 def test_json_formatter_includes_extra_fields() -> None:
     formatter = JsonFormatter()
     record = logging.LogRecord(
-        name="test", level=logging.INFO, pathname="", lineno=0,
-        msg="event", args=(), exc_info=None,
+        name="test",
+        level=logging.INFO,
+        pathname="",
+        lineno=0,
+        msg="event",
+        args=(),
+        exc_info=None,
     )
     record.chunk_id = "abc123"
     output = formatter.format(record)

@@ -83,9 +83,7 @@ def test_find_similar_empty_when_no_embeddings(
     repo.upsert(_entity("cand_no_emb_1", "Alpha"))
     repo.upsert(_entity("cand_no_emb_2", "Beta"))
 
-    results = find_similar_by_embedding(
-        _uniform_vec(), "schema:Organization", pg, threshold=0.5
-    )
+    results = find_similar_by_embedding(_uniform_vec(), "schema:Organization", pg, threshold=0.5)
     assert results == []
 
 
@@ -125,9 +123,7 @@ def test_find_similar_threshold_filters_orthogonal(
     _insert_with_embedding(pg, "cand_thr_1", "Query Entity", vec=_uniform_vec())
     _insert_with_embedding(pg, "cand_thr_2", "Orthogonal Entity", vec=_alt_vec())
 
-    results = find_similar_by_embedding(
-        _uniform_vec(), "schema:Organization", pg, threshold=0.5
-    )
+    results = find_similar_by_embedding(_uniform_vec(), "schema:Organization", pg, threshold=0.5)
     ids = {r["id"] for r in results}
     assert "cand_thr_2" not in ids
 
@@ -137,7 +133,9 @@ def test_find_similar_excludes_different_type(
     pg: psycopg.Connection[dict[str, Any]],
 ) -> None:
     vec = _uniform_vec()
-    _insert_with_embedding(pg, "cand_type_1", "Org Entity", entity_type="schema:Organization", vec=vec)
+    _insert_with_embedding(
+        pg, "cand_type_1", "Org Entity", entity_type="schema:Organization", vec=vec
+    )
     _insert_with_embedding(pg, "cand_type_2", "Person Entity", entity_type="schema:Person", vec=vec)
 
     results = find_similar_by_embedding(vec, "schema:Organization", pg, threshold=0.0)
@@ -182,8 +180,10 @@ def test_find_merge_candidates_type_filter(
 
     org_cands = find_merge_candidates(pg, entity_type="schema:Organization", threshold=0.99)
     assert all(
-        pg.execute("SELECT entity_type FROM entities WHERE id = %s", (c.entity_a_id,))
-        .fetchone()["entity_type"] == "schema:Organization"
+        pg.execute("SELECT entity_type FROM entities WHERE id = %s", (c.entity_a_id,)).fetchone()[
+            "entity_type"
+        ]
+        == "schema:Organization"
         for c in org_cands
     )
 
@@ -197,7 +197,9 @@ def test_find_merge_candidates_similarity_value(
     _insert_with_embedding(pg, "mc_sv_2", "Beta", vec=vec)
 
     candidates = find_merge_candidates(pg, threshold=0.99)
-    matching = [c for c in candidates if set((c.entity_a_id, c.entity_b_id)) == {"mc_sv_1", "mc_sv_2"}]
+    matching = [
+        c for c in candidates if set((c.entity_a_id, c.entity_b_id)) == {"mc_sv_1", "mc_sv_2"}
+    ]
     assert len(matching) == 1
     assert abs(matching[0].similarity - 1.0) < 1e-4
     assert matching[0].method == "embedding"

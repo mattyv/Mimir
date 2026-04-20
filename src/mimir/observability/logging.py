@@ -24,8 +24,7 @@ class JsonFormatter(logging.Formatter):
         extra = {
             k: v
             for k, v in record.__dict__.items()
-            if k
-            not in logging.LogRecord.__dict__
+            if k not in logging.LogRecord.__dict__
             and not k.startswith("_")
             and k not in ("msg", "args", "exc_info", "exc_text", "stack_info", "message")
         }

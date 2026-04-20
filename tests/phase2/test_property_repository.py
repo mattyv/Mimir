@@ -51,7 +51,9 @@ def _seed_entity(repo: EntityRepository, entity_id: str = "svc_001") -> None:
     )
 
 
-def _property(entity_id: str = "svc_001", key: str = "schema:name", value: Any = "Acme") -> Property:
+def _property(
+    entity_id: str = "svc_001", key: str = "schema:name", value: Any = "Acme"
+) -> Property:
     return Property(
         entity_id=entity_id,
         key=key,
@@ -92,18 +94,20 @@ def test_property_list_empty_for_unknown_entity(pg: psycopg.Connection[Any]) -> 
 def test_property_list_as_of_active(pg: psycopg.Connection[Any]) -> None:
     _seed_entity(EntityRepository(pg))
     repo = PropertyRepository(pg)
-    repo.insert(Property(
-        entity_id="svc_001",
-        key="schema:name",
-        value="Active",
-        value_type="str",
-        confidence=0.9,
-        source=_source(),
-        grounding=_grounding(),
-        temporal=_temporal(valid_from=_YESTERDAY, valid_until=_NOW + timedelta(days=1)),
-        visibility=_visibility(),
-        vocabulary_version="0.1.0",
-    ))
+    repo.insert(
+        Property(
+            entity_id="svc_001",
+            key="schema:name",
+            value="Active",
+            value_type="str",
+            confidence=0.9,
+            source=_source(),
+            grounding=_grounding(),
+            temporal=_temporal(valid_from=_YESTERDAY, valid_until=_NOW + timedelta(days=1)),
+            visibility=_visibility(),
+            vocabulary_version="0.1.0",
+        )
+    )
     rows = repo.list_for_entity("svc_001", as_of=_NOW)
     assert len(rows) == 1
 
@@ -111,18 +115,20 @@ def test_property_list_as_of_active(pg: psycopg.Connection[Any]) -> None:
 def test_property_list_as_of_excludes_expired(pg: psycopg.Connection[Any]) -> None:
     _seed_entity(EntityRepository(pg))
     repo = PropertyRepository(pg)
-    repo.insert(Property(
-        entity_id="svc_001",
-        key="schema:name",
-        value="Old",
-        value_type="str",
-        confidence=0.9,
-        source=_source(),
-        grounding=_grounding(),
-        temporal=_temporal(valid_from=_YESTERDAY, valid_until=_YESTERDAY + timedelta(hours=1)),
-        visibility=_visibility(),
-        vocabulary_version="0.1.0",
-    ))
+    repo.insert(
+        Property(
+            entity_id="svc_001",
+            key="schema:name",
+            value="Old",
+            value_type="str",
+            confidence=0.9,
+            source=_source(),
+            grounding=_grounding(),
+            temporal=_temporal(valid_from=_YESTERDAY, valid_until=_YESTERDAY + timedelta(hours=1)),
+            visibility=_visibility(),
+            vocabulary_version="0.1.0",
+        )
+    )
     rows = repo.list_for_entity("svc_001", as_of=_NOW)
     assert rows == []
 

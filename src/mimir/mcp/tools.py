@@ -27,7 +27,9 @@ from mimir.persistence.repository import (
 
 def _acl_allowed(row: dict[str, Any], caller_groups: set[str]) -> bool:
     vis = row.get("payload", {}).get("visibility", {})
-    return check_access(vis.get("acl", []), vis.get("sensitivity", "internal"), caller_groups).allowed
+    return check_access(
+        vis.get("acl", []), vis.get("sensitivity", "internal"), caller_groups
+    ).allowed
 
 
 def _acl_filter(rows: list[dict[str, Any]], caller_groups: set[str]) -> list[dict[str, Any]]:
@@ -190,8 +192,7 @@ def tool_get_neighborhood(
 
     if predicate_filter:
         edges_to_remove = [
-            (u, v, k) for u, v, k in subgraph.edges(keys=True)
-            if k != predicate_filter
+            (u, v, k) for u, v, k in subgraph.edges(keys=True) if k != predicate_filter
         ]
         subgraph.remove_edges_from(edges_to_remove)
 
@@ -237,7 +238,8 @@ def tool_entity_cascade_risk(
     descendants = list(nx.descendants(graph, entity_id))
 
     visible_descendants = [
-        d for d in descendants
+        d
+        for d in descendants
         if d in graph.nodes and _acl_allowed(dict(graph.nodes[d]), caller_groups)
     ]
 
@@ -347,9 +349,7 @@ def tool_explain_axiom(
 
     payload = row.get("payload") or {}
     vis = payload.get("visibility", {})
-    decision = check_access(
-        vis.get("acl", []), vis.get("sensitivity", "internal"), caller_groups
-    )
+    decision = check_access(vis.get("acl", []), vis.get("sensitivity", "internal"), caller_groups)
     if not decision.allowed:
         return {"error": "forbidden", "axiom_id": axiom_id}
 

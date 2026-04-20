@@ -113,8 +113,7 @@ def test_sample_chunks_have_acl(sample_chunks: list) -> None:
 def test_frozen_questions_file_exists() -> None:
     """eval/frozen_questions.yaml must exist in the repository root."""
     assert _EVAL_FILE.exists(), (
-        f"eval/frozen_questions.yaml not found at {_EVAL_FILE}. "
-        "Create it before closing Phase 0."
+        f"eval/frozen_questions.yaml not found at {_EVAL_FILE}. Create it before closing Phase 0."
     )
 
 
@@ -145,6 +144,4 @@ def test_frozen_questions_has_twenty_questions() -> None:
 
     data = yaml.safe_load(_EVAL_FILE.read_text())
     questions = data.get("questions", [])
-    assert len(questions) == 20, (
-        f"Expected 20 frozen eval questions, found {len(questions)}."
-    )
+    assert len(questions) == 20, f"Expected 20 frozen eval questions, found {len(questions)}."

@@ -41,8 +41,13 @@ def test_load_questions_all_have_ids() -> None:
 @pytest.mark.phase15
 def test_load_questions_all_have_categories() -> None:
     questions = load_questions(_EVAL_PATH)
-    valid_cats = {"factual_lookup", "relationship_traversal", "policy_recall",
-                  "decision_history", "cross_cutting"}
+    valid_cats = {
+        "factual_lookup",
+        "relationship_traversal",
+        "policy_recall",
+        "decision_history",
+        "cross_cutting",
+    }
     for q in questions:
         assert q.category in valid_cats
 
@@ -157,8 +162,11 @@ def test_run_eval_by_category() -> None:
     report = run_eval(questions, llm)
     cats = report.by_category()
     assert set(cats.keys()) == {
-        "factual_lookup", "relationship_traversal", "policy_recall",
-        "decision_history", "cross_cutting",
+        "factual_lookup",
+        "relationship_traversal",
+        "policy_recall",
+        "decision_history",
+        "cross_cutting",
     }
 
 

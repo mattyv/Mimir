@@ -11,6 +11,7 @@ from mimir.crawler.prompts import build_extraction_prompt
 def test_extraction_prompt_includes_entity_types(core_vocabulary: object) -> None:
     """Every core entity type IRI must appear in the extraction prompt."""
     from mimir.vocabulary.loader import Vocabulary
+
     vocab: Vocabulary = core_vocabulary  # type: ignore[assignment]
     prompt = build_extraction_prompt("test content")
     missing = [e.iri for e in vocab.entity_types if e.iri not in prompt]
@@ -21,6 +22,7 @@ def test_extraction_prompt_includes_entity_types(core_vocabulary: object) -> Non
 def test_extraction_prompt_includes_predicates(core_vocabulary: object) -> None:
     """Every core predicate IRI must appear in the extraction prompt."""
     from mimir.vocabulary.loader import Vocabulary
+
     vocab: Vocabulary = core_vocabulary  # type: ignore[assignment]
     prompt = build_extraction_prompt("test content")
     missing = [p.iri for p in vocab.predicates if p.iri not in prompt]
@@ -31,8 +33,14 @@ def test_extraction_prompt_includes_predicates(core_vocabulary: object) -> None:
 def test_extraction_prompt_includes_observation_types(core_vocabulary: object) -> None:
     """All 8 closed observation types must appear in the prompt."""
     obs_types = [
-        "strength", "risk", "anti_pattern", "maturity",
-        "smell", "opportunity", "inconsistency", "functional_state",
+        "strength",
+        "risk",
+        "anti_pattern",
+        "maturity",
+        "smell",
+        "opportunity",
+        "inconsistency",
+        "functional_state",
     ]
     prompt = build_extraction_prompt("test content")
     missing = [t for t in obs_types if t not in prompt]
@@ -51,6 +59,7 @@ def test_spine_prompt_includes_entity_types(core_vocabulary: object) -> None:
     """Every core entity type IRI must appear in the spine prompt."""
     from mimir.crawler.prompts import build_spine_prompt
     from mimir.vocabulary.loader import Vocabulary
+
     vocab: Vocabulary = core_vocabulary  # type: ignore[assignment]
     prompt = build_spine_prompt("test content")
     missing = [e.iri for e in vocab.entity_types if e.iri not in prompt]
@@ -62,6 +71,7 @@ def test_spine_prompt_includes_predicates(core_vocabulary: object) -> None:
     """Every core predicate IRI must appear in the spine prompt."""
     from mimir.crawler.prompts import build_spine_prompt
     from mimir.vocabulary.loader import Vocabulary
+
     vocab: Vocabulary = core_vocabulary  # type: ignore[assignment]
     prompt = build_spine_prompt("test content")
     missing = [p.iri for p in vocab.predicates if p.iri not in prompt]
@@ -72,9 +82,16 @@ def test_spine_prompt_includes_predicates(core_vocabulary: object) -> None:
 def test_observations_prompt_includes_all_obs_types() -> None:
     """All 8 closed observation types must appear in the observations prompt."""
     from mimir.crawler.prompts import build_observations_prompt
+
     obs_types = [
-        "strength", "risk", "anti_pattern", "maturity",
-        "smell", "opportunity", "inconsistency", "functional_state",
+        "strength",
+        "risk",
+        "anti_pattern",
+        "maturity",
+        "smell",
+        "opportunity",
+        "inconsistency",
+        "functional_state",
     ]
     prompt = build_observations_prompt("test content")
     missing = [t for t in obs_types if t not in prompt]
@@ -84,6 +101,7 @@ def test_observations_prompt_includes_all_obs_types() -> None:
 @pytest.mark.phase5
 def test_grounding_candidates_prompt_includes_entity_list() -> None:
     from mimir.crawler.prompts import build_grounding_candidates_prompt
+
     prompt = build_grounding_candidates_prompt("some chunk text", "- OMMS (auros:TradingService)")
     assert "OMMS" in prompt
     assert "some chunk text" in prompt
