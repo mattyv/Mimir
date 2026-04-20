@@ -43,4 +43,4 @@ def update_entity_embedding(
         "UPDATE entities SET embedding = %s::vector WHERE id = %s RETURNING id",
         (_vec_sql(embedding), entity_id),
     )
-    return result.rowcount > 0
+    return int(result.rowcount) > 0

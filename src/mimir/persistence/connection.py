@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Any
+from typing import Any, cast
 
 import psycopg
 from psycopg.rows import dict_row
@@ -60,7 +60,7 @@ def transaction(
     """
     p = pool or get_pool()
     with p.connection() as raw_conn:
-        conn: psycopg.Connection[dict[str, Any]] = raw_conn  # type: ignore[assignment]
+        conn = cast(psycopg.Connection[dict[str, Any]], raw_conn)
         conn.autocommit = False
         conn.execute(f"SET TRANSACTION ISOLATION LEVEL {isolation.upper()}")
         try:

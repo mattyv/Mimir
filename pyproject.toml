@@ -105,11 +105,11 @@ python_version = "3.11"
 mypy_path = "src"
 packages = ["mimir"]
 
-# psycopg3 and psycopg_pool don't expose stubs in a way mypy resolves automatically
+# Third-party packages that lack py.typed markers or bundled stubs
 [[tool.mypy.overrides]]
-module = ["mimir.persistence.*", "mimir.crawler.*"]
+module = ["mimir.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = ["openai", "openai.*"]
+module = ["openai", "openai.*", "networkx", "networkx.*", "pyshacl", "pyshacl.*", "detect_secrets", "detect_secrets.*", "yaml"]
 ignore_missing_imports = true
