@@ -79,8 +79,7 @@ class Temporal(BaseModel):
     def _check_ordering(self) -> Temporal:
         if self.valid_until is not None and self.valid_from > self.valid_until:
             raise ValueError(
-                f"valid_from ({self.valid_from}) must not be after "
-                f"valid_until ({self.valid_until})"
+                f"valid_from ({self.valid_from}) must not be after valid_until ({self.valid_until})"
             )
         return self
 

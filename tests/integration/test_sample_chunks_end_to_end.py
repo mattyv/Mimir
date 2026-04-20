@@ -23,103 +23,219 @@ def _fake_llm_for_chunk(chunk: Chunk) -> Any:
     if chunk.id == "confluence_001":
         llm.set_response(
             build_spine_prompt(chunk.content),
-            json.dumps({
-                "entities": [
-                    {"name": "OMMS", "type": "auros:TradingService", "description": "Options market making service"},
-                    {"name": "APAC team", "type": "auros:TradingTeam", "description": "APAC trading team"},
-                    {"name": "FIX connector", "type": "auros:Connector", "description": "FIX protocol connector"},
-                    {"name": "CME", "type": "auros:Venue", "description": "CME exchange"},
-                    {"name": "ICE", "type": "auros:Venue", "description": "ICE exchange"},
-                ],
-                "properties": [
-                    {"entity_name": "OMMS", "key": "schema:name", "value": "OMMS"},
-                ],
-                "relationships": [
-                    {"subject": "APAC team", "predicate": "auros:owns", "object": "OMMS"},
-                    {"subject": "OMMS", "predicate": "auros:dependsOn", "object": "FIX connector"},
-                    {"subject": "FIX connector", "predicate": "auros:connects", "object": "CME"},
-                    {"subject": "FIX connector", "predicate": "auros:connects", "object": "ICE"},
-                ],
-            }),
+            json.dumps(
+                {
+                    "entities": [
+                        {
+                            "name": "OMMS",
+                            "type": "auros:TradingService",
+                            "description": "Options market making service",
+                        },
+                        {
+                            "name": "APAC team",
+                            "type": "auros:TradingTeam",
+                            "description": "APAC trading team",
+                        },
+                        {
+                            "name": "FIX connector",
+                            "type": "auros:Connector",
+                            "description": "FIX protocol connector",
+                        },
+                        {"name": "CME", "type": "auros:Venue", "description": "CME exchange"},
+                        {"name": "ICE", "type": "auros:Venue", "description": "ICE exchange"},
+                    ],
+                    "properties": [
+                        {"entity_name": "OMMS", "key": "schema:name", "value": "OMMS"},
+                    ],
+                    "relationships": [
+                        {"subject": "APAC team", "predicate": "auros:owns", "object": "OMMS"},
+                        {
+                            "subject": "OMMS",
+                            "predicate": "auros:dependsOn",
+                            "object": "FIX connector",
+                        },
+                        {
+                            "subject": "FIX connector",
+                            "predicate": "auros:connects",
+                            "object": "CME",
+                        },
+                        {
+                            "subject": "FIX connector",
+                            "predicate": "auros:connects",
+                            "object": "ICE",
+                        },
+                    ],
+                }
+            ),
         )
 
     elif chunk.id == "github_001":
         llm.set_response(
             build_spine_prompt(chunk.content),
-            json.dumps({
-                "entities": [
-                    {"name": "panic_server", "type": "auros:TradingService", "description": "Safety circuit breaker"},
-                    {"name": "risk_engine", "type": "auros:RiskSystem", "description": "Risk computation engine"},
-                    {"name": "risk-infra team", "type": "auros:TradingTeam", "description": "Risk infrastructure team"},
-                ],
-                "relationships": [
-                    {"subject": "panic_server", "predicate": "auros:dependsOn", "object": "risk_engine"},
-                    {"subject": "risk-infra team", "predicate": "auros:owns", "object": "panic_server"},
-                ],
-            }),
+            json.dumps(
+                {
+                    "entities": [
+                        {
+                            "name": "panic_server",
+                            "type": "auros:TradingService",
+                            "description": "Safety circuit breaker",
+                        },
+                        {
+                            "name": "risk_engine",
+                            "type": "auros:RiskSystem",
+                            "description": "Risk computation engine",
+                        },
+                        {
+                            "name": "risk-infra team",
+                            "type": "auros:TradingTeam",
+                            "description": "Risk infrastructure team",
+                        },
+                    ],
+                    "relationships": [
+                        {
+                            "subject": "panic_server",
+                            "predicate": "auros:dependsOn",
+                            "object": "risk_engine",
+                        },
+                        {
+                            "subject": "risk-infra team",
+                            "predicate": "auros:owns",
+                            "object": "panic_server",
+                        },
+                    ],
+                }
+            ),
         )
 
     elif chunk.id == "slack_001":
         llm.set_response(
             build_spine_prompt(chunk.content),
-            json.dumps({
-                "entities": [
-                    {"name": "PAN-12445", "type": "schema:SoftwareApplication", "description": "Ticket PAN-12445"},
-                    {"name": "hawkeye", "type": "auros:TradingService", "description": "Hawkeye service"},
-                ],
-                "relationships": [
-                    {"subject": "PAN-12445", "predicate": "auros:dependsOn", "object": "hawkeye"},
-                ],
-            }),
+            json.dumps(
+                {
+                    "entities": [
+                        {
+                            "name": "PAN-12445",
+                            "type": "schema:SoftwareApplication",
+                            "description": "Ticket PAN-12445",
+                        },
+                        {
+                            "name": "hawkeye",
+                            "type": "auros:TradingService",
+                            "description": "Hawkeye service",
+                        },
+                    ],
+                    "relationships": [
+                        {
+                            "subject": "PAN-12445",
+                            "predicate": "auros:dependsOn",
+                            "object": "hawkeye",
+                        },
+                    ],
+                }
+            ),
         )
         llm.set_response(
             build_observations_prompt(chunk.content),
-            json.dumps({"observations": [
-                {"entity_name": "PAN-12445", "type": "risk", "description": "Blocked on sub-account consolidation"},
-            ]}),
+            json.dumps(
+                {
+                    "observations": [
+                        {
+                            "entity_name": "PAN-12445",
+                            "type": "risk",
+                            "description": "Blocked on sub-account consolidation",
+                        },
+                    ]
+                }
+            ),
         )
 
     elif chunk.id == "interview_001":
         llm.set_response(
             build_spine_prompt(chunk.content),
-            json.dumps({
-                "entities": [
-                    {"name": "hedge book feed", "type": "auros:TradingService", "description": "Hedge book feed"},
-                    {"name": "CME clearing", "type": "auros:Venue", "description": "CME clearing house"},
-                    {"name": "FIX connector", "type": "auros:Connector", "description": "FIX protocol connector"},
-                ],
-                "relationships": [
-                    {"subject": "hedge book feed", "predicate": "auros:dependsOn", "object": "FIX connector"},
-                    {"subject": "FIX connector", "predicate": "auros:connects", "object": "CME clearing"},
-                ],
-            }),
+            json.dumps(
+                {
+                    "entities": [
+                        {
+                            "name": "hedge book feed",
+                            "type": "auros:TradingService",
+                            "description": "Hedge book feed",
+                        },
+                        {
+                            "name": "CME clearing",
+                            "type": "auros:Venue",
+                            "description": "CME clearing house",
+                        },
+                        {
+                            "name": "FIX connector",
+                            "type": "auros:Connector",
+                            "description": "FIX protocol connector",
+                        },
+                    ],
+                    "relationships": [
+                        {
+                            "subject": "hedge book feed",
+                            "predicate": "auros:dependsOn",
+                            "object": "FIX connector",
+                        },
+                        {
+                            "subject": "FIX connector",
+                            "predicate": "auros:connects",
+                            "object": "CME clearing",
+                        },
+                    ],
+                }
+            ),
         )
         llm.set_response(
             build_observations_prompt(chunk.content),
-            json.dumps({"observations": [
-                {"entity_name": "hedge book feed", "type": "risk",
-                 "description": "Hard dependency on FIX connector — outage stops quoting"},
-            ]}),
+            json.dumps(
+                {
+                    "observations": [
+                        {
+                            "entity_name": "hedge book feed",
+                            "type": "risk",
+                            "description": "Hard dependency on FIX connector — outage stops quoting",
+                        },
+                    ]
+                }
+            ),
         )
 
     elif chunk.id == "code_001":
         llm.set_response(
             build_spine_prompt(chunk.content),
-            json.dumps({
-                "entities": [
-                    {"name": "risk_engine", "type": "auros:RiskSystem", "description": "Python risk engine"},
-                ],
-                "properties": [
-                    {"entity_name": "risk_engine", "key": "schema:programmingLanguage", "value": "Python 3.12"},
-                ],
-            }),
+            json.dumps(
+                {
+                    "entities": [
+                        {
+                            "name": "risk_engine",
+                            "type": "auros:RiskSystem",
+                            "description": "Python risk engine",
+                        },
+                    ],
+                    "properties": [
+                        {
+                            "entity_name": "risk_engine",
+                            "key": "schema:programmingLanguage",
+                            "value": "Python 3.12",
+                        },
+                    ],
+                }
+            ),
         )
         llm.set_response(
             build_observations_prompt(chunk.content),
-            json.dumps({"observations": [
-                {"entity_name": "risk_engine", "type": "smell",
-                 "description": "Cyclomatic complexity 14 — high"},
-            ]}),
+            json.dumps(
+                {
+                    "observations": [
+                        {
+                            "entity_name": "risk_engine",
+                            "type": "smell",
+                            "description": "Cyclomatic complexity 14 — high",
+                        },
+                    ]
+                }
+            ),
         )
 
     return llm

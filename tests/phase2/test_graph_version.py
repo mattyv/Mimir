@@ -49,7 +49,9 @@ def test_bump_missing_sentinel_raises() -> None:
 
     from mimir.persistence.schema import apply_schema
 
-    with psycopg.connect("dbname=mimir_test user=root", row_factory=dict_row, autocommit=False) as conn:
+    with psycopg.connect(
+        "dbname=mimir_test user=root", row_factory=dict_row, autocommit=False
+    ) as conn:
         conn.execute("BEGIN")
         apply_schema(conn)
         conn.execute("DELETE FROM graph_meta")
@@ -65,7 +67,9 @@ def test_current_missing_sentinel_raises() -> None:
 
     from mimir.persistence.schema import apply_schema
 
-    with psycopg.connect("dbname=mimir_test user=root", row_factory=dict_row, autocommit=False) as conn:
+    with psycopg.connect(
+        "dbname=mimir_test user=root", row_factory=dict_row, autocommit=False
+    ) as conn:
         conn.execute("BEGIN")
         apply_schema(conn)
         conn.execute("DELETE FROM graph_meta")

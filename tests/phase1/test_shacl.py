@@ -31,7 +31,9 @@ from mimir.vocabulary.shacl import (
 
 pytestmark = pytest.mark.phase1
 
-_VOCAB_PATH = Path(__file__).parent.parent.parent / "src" / "mimir" / "vocabulary" / "vocabulary.yaml"
+_VOCAB_PATH = (
+    Path(__file__).parent.parent.parent / "src" / "mimir" / "vocabulary" / "vocabulary.yaml"
+)
 
 SCHEMA = Namespace(SCHEMA_NS)
 AUROS = Namespace(AUROS_NS)

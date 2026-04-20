@@ -47,16 +47,16 @@ def test_valid_iris_accepted(iri: str) -> None:
 @pytest.mark.parametrize(
     "bad_value",
     [
-        "Organization",              # free string, no prefix
-        "Organization:Person",       # unknown namespace
+        "Organization",  # free string, no prefix
+        "Organization:Person",  # unknown namespace
         "http://schema.org/Person",  # full HTTP IRI — not compact notation
-        "",                          # empty
-        "schema:",                   # empty local part
-        "unknown:Thing",             # namespace not in core set
-        "foo:bar",                   # namespace not in core set
-        "SCHEMA:Organization",       # uppercase namespace
-        " schema:Organization",      # leading space
-        "schema:Organization ",      # trailing space
+        "",  # empty
+        "schema:",  # empty local part
+        "unknown:Thing",  # namespace not in core set
+        "foo:bar",  # namespace not in core set
+        "SCHEMA:Organization",  # uppercase namespace
+        " schema:Organization",  # leading space
+        "schema:Organization ",  # trailing space
     ],
 )
 def test_invalid_iris_rejected(bad_value: str) -> None:

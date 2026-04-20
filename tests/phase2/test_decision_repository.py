@@ -89,6 +89,7 @@ def test_decision_list_active(pg: psycopg.Connection[dict[str, Any]]) -> None:
 
 def test_decision_list_active_ordered_newest_first(pg: psycopg.Connection[dict[str, Any]]) -> None:
     from datetime import timedelta
+
     repo = DecisionRepository(pg)
     old = Decision(
         id="old-decision",

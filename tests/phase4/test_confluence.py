@@ -63,9 +63,7 @@ def test_fetch_page_sets_acl_from_space() -> None:
 @pytest.mark.phase4
 @respx.mock
 def test_fetch_page_not_found_returns_none() -> None:
-    respx.get(f"{_BASE}/wiki/rest/api/content/99999").mock(
-        return_value=httpx.Response(404)
-    )
+    respx.get(f"{_BASE}/wiki/rest/api/content/99999").mock(return_value=httpx.Response(404))
     chunk = _adapter().fetch_page("99999")
     assert chunk is None
 
@@ -73,9 +71,7 @@ def test_fetch_page_not_found_returns_none() -> None:
 @pytest.mark.phase4
 @respx.mock
 def test_fetch_page_http_error_raises() -> None:
-    respx.get(f"{_BASE}/wiki/rest/api/content/12345").mock(
-        return_value=httpx.Response(500)
-    )
+    respx.get(f"{_BASE}/wiki/rest/api/content/12345").mock(return_value=httpx.Response(500))
     with pytest.raises(httpx.HTTPStatusError):
         _adapter().fetch_page("12345")
 

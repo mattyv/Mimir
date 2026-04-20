@@ -31,9 +31,7 @@ def validate_iri(value: str) -> str:
         raise ValueError(f"IRI must not have leading or trailing whitespace: {value!r}")
     m = _PREFIX_RE.match(value)
     if not m:
-        raise ValueError(
-            f"Invalid IRI syntax (expected 'prefix:local'): {value!r}"
-        )
+        raise ValueError(f"Invalid IRI syntax (expected 'prefix:local'): {value!r}")
     ns = m.group(1)
     if ns not in CORE_NAMESPACES:
         raise ValueError(

@@ -48,7 +48,9 @@ def _seed_entity(conn: psycopg.Connection[Any], entity_id: str, name: str) -> No
     )
 
 
-def _seed_rel(conn: psycopg.Connection[Any], subj: str, obj: str, pred: str = "auros:dependsOn") -> None:
+def _seed_rel(
+    conn: psycopg.Connection[Any], subj: str, obj: str, pred: str = "auros:dependsOn"
+) -> None:
     RelationshipRepository(conn).insert(
         Relationship(
             subject_id=subj,
@@ -132,8 +134,8 @@ def test_build_graph_at_version(pg: psycopg.Connection[Any]) -> None:
 
     _seed_entity(pg, "a", "Alpha")  # written at v_before+1
     v_a = current_graph_version(pg)
-    _seed_entity(pg, "b", "Beta")   # written at v0+2
-    g_va = build_graph(pg, at_version=v_a)      # snapshot at v_a: only "a"
+    _seed_entity(pg, "b", "Beta")  # written at v0+2
+    g_va = build_graph(pg, at_version=v_a)  # snapshot at v_a: only "a"
     g_vab = build_graph(pg, at_version=v_a + 1)  # snapshot includes "b"
     assert "a" in g_va
     assert "b" not in g_va

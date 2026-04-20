@@ -185,7 +185,9 @@ def test_list_active_filters_by_type(pg: psycopg.Connection[Any]) -> None:
 def test_list_active_excludes_expired(pg: psycopg.Connection[Any]) -> None:
     repo = EntityRepository(pg)
     repo.upsert(_entity("a", "Active"))
-    repo.upsert(_entity("b", "Expired", valid_from=_YESTERDAY, valid_until=_NOW - timedelta(hours=1)))
+    repo.upsert(
+        _entity("b", "Expired", valid_from=_YESTERDAY, valid_until=_NOW - timedelta(hours=1))
+    )
     # Default as_of=None → valid_until IS NULL → only "Active" is returned
     rows = repo.list_active()
     assert len(rows) == 1

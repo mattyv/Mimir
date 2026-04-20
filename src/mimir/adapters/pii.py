@@ -53,10 +53,12 @@ def scan_chunk(chunk: Chunk) -> PIIScanResult:
             sc = SecretsCollection()
             sc.scan_file(tmp_path)
             for _path, secret in sc:
-                findings.append(PIIFinding(
-                    secret_type=secret.type,
-                    line_number=secret.line_number,
-                ))
+                findings.append(
+                    PIIFinding(
+                        secret_type=secret.type,
+                        line_number=secret.line_number,
+                    )
+                )
     finally:
         os.unlink(tmp_path)
     return PIIScanResult(

@@ -122,7 +122,9 @@ def test_expire_entity_sets_valid_until(pg: psycopg.Connection[dict[str, Any]]) 
 
 
 @pytest.mark.phase10
-def test_expire_entity_already_expired_returns_false(pg: psycopg.Connection[dict[str, Any]]) -> None:
+def test_expire_entity_already_expired_returns_false(
+    pg: psycopg.Connection[dict[str, Any]],
+) -> None:
     eid = _make_entity(pg, "svc_already_expired")
     expire_entity(eid, pg, at=_T2)
     assert not expire_entity(eid, pg, at=_T2)
@@ -175,7 +177,9 @@ def test_supersede_entity_sets_payload(pg: psycopg.Connection[dict[str, Any]]) -
     old_id = _make_entity(pg, "old_svc")
     new_id = _make_entity(pg, "new_svc")
     assert supersede_entity(old_id, new_id, pg, at=_T2)
-    row = pg.execute("SELECT payload, valid_until FROM entities WHERE id = %s", (old_id,)).fetchone()
+    row = pg.execute(
+        "SELECT payload, valid_until FROM entities WHERE id = %s", (old_id,)
+    ).fetchone()
     assert row is not None
     assert row["valid_until"] is not None
     assert row["payload"]["superseded_by"] == new_id

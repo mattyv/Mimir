@@ -39,7 +39,9 @@ def _source(st: str = "confluence") -> Source:
     return Source(type=st, reference="https://example.com", retrieved_at=_NOW)  # type: ignore[arg-type]
 
 
-def _make_entity(conn: psycopg.Connection[dict[str, Any]], name: str, confidence: float = 0.9) -> str:
+def _make_entity(
+    conn: psycopg.Connection[dict[str, Any]], name: str, confidence: float = 0.9
+) -> str:
     eid = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{name}:auros:TradingService"))
     EntityRepository(conn).upsert(
         Entity(
@@ -217,7 +219,9 @@ def test_classify_entity_chaotic_via_inconsistency(pg: psycopg.Connection[dict[s
 
 
 @pytest.mark.phase7
-def test_classify_entity_complicated_via_relationships(pg: psycopg.Connection[dict[str, Any]]) -> None:
+def test_classify_entity_complicated_via_relationships(
+    pg: psycopg.Connection[dict[str, Any]],
+) -> None:
     eid = _make_entity(pg, "hub_svc")
     deps = [_make_entity(pg, f"dep_{i}") for i in range(5)]
     for dep in deps:

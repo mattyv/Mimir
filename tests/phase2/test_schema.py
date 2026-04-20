@@ -16,8 +16,18 @@ def test_schema_creates_entities_table(pg: psycopg.Connection[Any]) -> None:
         "WHERE table_name = 'entities' ORDER BY column_name"
     ).fetchall()
     columns = {r["column_name"] for r in row}
-    assert {"id", "entity_type", "name", "name_normalized", "confidence",
-            "valid_from", "valid_until", "payload", "embedding", "graph_version"} <= columns
+    assert {
+        "id",
+        "entity_type",
+        "name",
+        "name_normalized",
+        "confidence",
+        "valid_from",
+        "valid_until",
+        "payload",
+        "embedding",
+        "graph_version",
+    } <= columns
 
 
 def test_schema_creates_properties_table(pg: psycopg.Connection[Any]) -> None:

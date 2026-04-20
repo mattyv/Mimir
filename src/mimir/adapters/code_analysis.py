@@ -12,7 +12,11 @@ from mimir.adapters.base import Chunk
 def _count_complexity(tree: ast.Module) -> int:
     """Count branching nodes as a proxy for cyclomatic complexity."""
     branch_types = (
-        ast.If, ast.For, ast.While, ast.ExceptHandler, ast.With,
+        ast.If,
+        ast.For,
+        ast.While,
+        ast.ExceptHandler,
+        ast.With,
     )
     return sum(1 for _ in ast.walk(tree) if isinstance(_, branch_types))
 
@@ -34,9 +38,7 @@ class CodeAnalysisAdapter:
 
         classes = [n.name for n in ast.walk(tree) if isinstance(n, ast.ClassDef)]
         functions = [
-            n.name
-            for n in ast.walk(tree)
-            if isinstance(n, ast.FunctionDef | ast.AsyncFunctionDef)
+            n.name for n in ast.walk(tree) if isinstance(n, ast.FunctionDef | ast.AsyncFunctionDef)
         ]
         imports: list[str] = []
         for node in ast.walk(tree):
@@ -45,8 +47,7 @@ class CodeAnalysisAdapter:
             elif isinstance(node, ast.ImportFrom):
                 module = node.module or ""
                 imports.extend(
-                    f"{module}.{alias.name}" if module else alias.name
-                    for alias in node.names
+                    f"{module}.{alias.name}" if module else alias.name for alias in node.names
                 )
 
         complexity = _count_complexity(tree)

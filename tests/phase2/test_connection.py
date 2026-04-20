@@ -101,9 +101,7 @@ def test_transaction_isolation_level_set(_pg_schema: None) -> None:
     pool = init_pool(_DSN, min_size=1, max_size=2)
     try:
         with transaction(pool, isolation="repeatable read") as conn:
-            row = conn.execute(
-                "SELECT current_setting('transaction_isolation') AS lvl"
-            ).fetchone()
+            row = conn.execute("SELECT current_setting('transaction_isolation') AS lvl").fetchone()
             assert row is not None
             assert "repeatable" in row["lvl"]
     finally:

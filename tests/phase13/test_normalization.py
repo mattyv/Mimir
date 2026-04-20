@@ -128,18 +128,14 @@ def test_promote_provisional_fails_not_provisional() -> None:
 
 @pytest.mark.phase13
 def test_promote_provisional_fails_low_use_count() -> None:
-    result = promote_provisional(
-        "auros:provisional:x", use_count=5, source_count=5, approved=True
-    )
+    result = promote_provisional("auros:provisional:x", use_count=5, source_count=5, approved=True)
     assert not result.promoted
     assert "use_count=5" in result.reason
 
 
 @pytest.mark.phase13
 def test_promote_provisional_fails_low_source_count() -> None:
-    result = promote_provisional(
-        "auros:provisional:x", use_count=15, source_count=2, approved=True
-    )
+    result = promote_provisional("auros:provisional:x", use_count=15, source_count=2, approved=True)
     assert not result.promoted
     assert "source_count=2" in result.reason
 
@@ -228,6 +224,7 @@ def test_execute_promotion_returns_zero_when_no_matches(pg: object) -> None:
     from typing import Any
 
     import psycopg
+
     conn: psycopg.Connection[dict[str, Any]] = pg  # type: ignore[assignment]
     count = execute_promotion("auros:provisional:ghost_iri", "auros:GhostType", conn)
     assert count == 0

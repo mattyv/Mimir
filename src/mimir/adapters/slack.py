@@ -22,9 +22,7 @@ class SlackAdapter:
 
     def __init__(self, token: str, client: httpx.Client | None = None) -> None:
         self._token = token
-        self._client = client or httpx.Client(
-            headers={"Authorization": f"Bearer {token}"}
-        )
+        self._client = client or httpx.Client(headers={"Authorization": f"Bearer {token}"})
 
     def fetch_channel(self, channel_id: str, *, limit: int = 100) -> list[Chunk]:
         """Fetch recent messages from a Slack channel.

@@ -210,14 +210,22 @@ def process_chunk(
             if match:
                 result.entities_grounded += 1
 
-    _reg.counter("entities_upserted", source_type=chunk.source_type).inc(float(result.entities_upserted))
-    _reg.counter("properties_inserted", source_type=chunk.source_type).inc(float(result.properties_inserted))
+    _reg.counter("entities_upserted", source_type=chunk.source_type).inc(
+        float(result.entities_upserted)
+    )
+    _reg.counter("properties_inserted", source_type=chunk.source_type).inc(
+        float(result.properties_inserted)
+    )
     _reg.counter("relationships_inserted").inc(float(result.relationships_inserted))
     _reg.counter("observations_inserted").inc(float(result.observations_inserted))
-    log_pipeline_event(_logger, "chunk_processed", chunk.id,
-                       entities=result.entities_upserted,
-                       properties=result.properties_inserted,
-                       relationships=result.relationships_inserted,
-                       observations=result.observations_inserted)
+    log_pipeline_event(
+        _logger,
+        "chunk_processed",
+        chunk.id,
+        entities=result.entities_upserted,
+        properties=result.properties_inserted,
+        relationships=result.relationships_inserted,
+        observations=result.observations_inserted,
+    )
 
     return result

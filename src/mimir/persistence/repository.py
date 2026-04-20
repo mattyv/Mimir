@@ -98,7 +98,15 @@ class EntityRepository:
         version = bump_graph_version(self._conn)
         payload = entity.model_dump(
             mode="json",
-            exclude={"id", "type", "name", "description", "confidence", "temporal", "vocabulary_version"},
+            exclude={
+                "id",
+                "type",
+                "name",
+                "description",
+                "confidence",
+                "temporal",
+                "vocabulary_version",
+            },
         )
         result = self._conn.execute(
             """
@@ -208,7 +216,15 @@ class PropertyRepository:
         version = bump_graph_version(self._conn)
         payload = prop.model_dump(
             mode="json",
-            exclude={"entity_id", "key", "value", "value_type", "confidence", "temporal", "vocabulary_version"},
+            exclude={
+                "entity_id",
+                "key",
+                "value",
+                "value_type",
+                "confidence",
+                "temporal",
+                "vocabulary_version",
+            },
         )
         row = self._conn.execute(
             """
@@ -269,7 +285,14 @@ class RelationshipRepository:
         version = bump_graph_version(self._conn)
         payload = rel.model_dump(
             mode="json",
-            exclude={"subject_id", "predicate", "object_id", "confidence", "temporal", "vocabulary_version"},
+            exclude={
+                "subject_id",
+                "predicate",
+                "object_id",
+                "confidence",
+                "temporal",
+                "vocabulary_version",
+            },
         )
         row = self._conn.execute(
             """
@@ -348,7 +371,14 @@ class ObservationRepository:
         version = bump_graph_version(self._conn)
         payload = obs.model_dump(
             mode="json",
-            exclude={"entity_id", "type", "description", "confidence", "temporal", "vocabulary_version"},
+            exclude={
+                "entity_id",
+                "type",
+                "description",
+                "confidence",
+                "temporal",
+                "vocabulary_version",
+            },
         )
         row = self._conn.execute(
             """
@@ -387,7 +417,12 @@ class ObservationRepository:
             ("o.observation_type = %s", [observation_type]) if observation_type else ("", [])
         )
         where, params = _build_where(
-            [("o.entity_id = %s", [entity_id]), t_clause, (a_clause, a_params), (v_clause, v_params)]
+            [
+                ("o.entity_id = %s", [entity_id]),
+                t_clause,
+                (a_clause, a_params),
+                (v_clause, v_params),
+            ]
         )
         rows = self._conn.execute(
             f"SELECT * FROM observations o {where} ORDER BY o.id",
@@ -412,7 +447,14 @@ class ConstraintRepository:
         version = bump_graph_version(self._conn)
         payload = constraint.model_dump(
             mode="json",
-            exclude={"entity_id", "constraint_type", "condition", "threshold", "temporal", "vocabulary_version"},
+            exclude={
+                "entity_id",
+                "constraint_type",
+                "condition",
+                "threshold",
+                "temporal",
+                "vocabulary_version",
+            },
         )
         row = self._conn.execute(
             """
@@ -481,7 +523,16 @@ class ProcessRepository:
         name_normalized = unicodedata.normalize("NFC", process.name).casefold().strip()
         payload = process.model_dump(
             mode="json",
-            exclude={"id", "name", "stages", "inputs", "outputs", "slo", "temporal", "vocabulary_version"},
+            exclude={
+                "id",
+                "name",
+                "stages",
+                "inputs",
+                "outputs",
+                "slo",
+                "temporal",
+                "vocabulary_version",
+            },
         )
         result = self._conn.execute(
             """
@@ -568,7 +619,16 @@ class DecisionRepository:
         version = bump_graph_version(self._conn)
         payload = decision.model_dump(
             mode="json",
-            exclude={"id", "what", "why", "tradeoffs", "when", "who", "temporal", "vocabulary_version"},
+            exclude={
+                "id",
+                "what",
+                "why",
+                "tradeoffs",
+                "when",
+                "who",
+                "temporal",
+                "vocabulary_version",
+            },
         )
         result = self._conn.execute(
             """
