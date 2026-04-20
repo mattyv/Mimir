@@ -1,0 +1,27 @@
+defaults:
+  code_analysis: 1.0
+  github: 0.9
+  confluence: 0.8
+  interview: 0.7
+  slack: 0.5
+
+per_property:
+  schema:programmingLanguage:
+    code_analysis: 1.0
+    github: 0.9
+    confluence: 0.5
+    slack: 0.2
+
+  auros:owns:
+    confluence: 1.0
+    interview: 0.9
+    slack: 0.6
+    github: 0.4
+    code_analysis: 0.3
+
+  auros:dependsOn:
+    code_analysis: 1.0
+    github: 0.8
+    confluence: 0.6
+    interview: 0.5
+    slack: 0.3

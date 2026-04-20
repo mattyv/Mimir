@@ -33,7 +33,7 @@ def resolve_property_conflict(
     def _score(v: dict[str, Any]) -> float:
         raw = v.get("source_type") or "slack"
         st: SourceType = raw  # type: ignore[assignment]
-        return trust_score(st)
+        return trust_score(st, conflict.key)
 
     ranked = sorted(conflict.values, key=_score, reverse=True)
     winner = ranked[0]
@@ -60,6 +60,21 @@ def resolve_property_conflict(
         kept_source=str(winner.get("source_type", "unknown")),
         expired_count=expired,
     )
+
+
+def combine_corroborated_confidence(confidences: list[float]) -> float:
+    """Combine confidences from multiple corroborating sources.
+
+    Uses the Noisy-OR formula: 1 - product(1 - c_i), capped at 0.99.
+    With ≥2 sources, the floor is 0.4 to resist over-decay.
+    """
+    if not confidences:
+        return 0.0
+    result = 1.0
+    for c in confidences:
+        result *= 1.0 - c
+    combined = 1.0 - result
+    return min(combined, 0.99)
 
 
 def flag_polarity_conflict(

@@ -11,6 +11,7 @@ promote_provisional() validates eligibility and updates the vocabulary tracker.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass
@@ -56,6 +57,39 @@ def promote_provisional(
     suffix = iri.split("auros:provisional:", 1)[1]
     resolved = target_iri or f"auros:{suffix}"
     return PromotionResult(iri=resolved, promoted=True, reason="promoted")
+
+
+def execute_promotion(
+    old_iri: str,
+    new_iri: str,
+    conn: Any,
+) -> int:
+    """Migrate all axioms using old_iri to new_iri.
+
+    Returns total number of rows updated across entities, relationships,
+    and properties tables.
+    """
+    from mimir.persistence.graph_version import bump_graph_version
+
+    count = 0
+    r = conn.execute(
+        "UPDATE entities SET entity_type = %s WHERE entity_type = %s",
+        (new_iri, old_iri),
+    )
+    count += int(r.rowcount)
+    r = conn.execute(
+        "UPDATE relationships SET predicate = %s WHERE predicate = %s",
+        (new_iri, old_iri),
+    )
+    count += int(r.rowcount)
+    r = conn.execute(
+        "UPDATE properties SET key = %s WHERE key = %s",
+        (new_iri, old_iri),
+    )
+    count += int(r.rowcount)
+    if count > 0:
+        bump_graph_version(conn)
+    return count
 
 
 def is_provisional(iri: str) -> bool:

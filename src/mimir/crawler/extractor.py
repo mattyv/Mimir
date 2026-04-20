@@ -1,7 +1,11 @@
-"""LLM-based entity/relationship extractor.
+"""LLM-based entity/relationship/observation extractor.
 
-Takes a Chunk, calls the LLM, parses the JSON response, and returns
-ExtractionResult — a structured collection of raw extracted facts.
+Two extraction modes:
+  extract()            — single-pass combined prompt (backward compatible)
+  extract_three_pass() — three focused LLM calls: spine -> grounding -> observations
+
+Three-pass mode is the preferred pipeline path. Passes 2 and 3 degrade
+gracefully on LLM errors — only Pass 1 is fatal.
 """
 
 from __future__ import annotations
@@ -12,7 +16,12 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from mimir.adapters.base import Chunk
-from mimir.crawler.prompts import build_extraction_prompt
+from mimir.crawler.prompts import (
+    build_extraction_prompt,
+    build_grounding_candidates_prompt,
+    build_observations_prompt,
+    build_spine_prompt,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +55,14 @@ class RawObservation:
 
 
 @dataclass
+class RawGroundingCandidate:
+    entity_name: str
+    wikidata_qid: str
+    label: str
+    category: str
+
+
+@dataclass
 class ExtractionResult:
     chunk_id: str
     source_type: str
@@ -53,25 +70,12 @@ class ExtractionResult:
     properties: list[RawProperty] = field(default_factory=list)
     relationships: list[RawRelationship] = field(default_factory=list)
     observations: list[RawObservation] = field(default_factory=list)
+    grounding_candidates: list[RawGroundingCandidate] = field(default_factory=list)
     parse_error: str | None = None
 
 
-def extract(chunk: Chunk, llm: Any) -> ExtractionResult:
-    """Call the LLM on *chunk.content* and parse the JSON extraction result.
-
-    If the LLM returns invalid JSON, the result's ``parse_error`` field is
-    set and all fact lists are empty — the caller decides how to handle this.
-    """
-    prompt = build_extraction_prompt(chunk.content)
-    raw = llm.complete(prompt, temperature=0.0)
-    result = ExtractionResult(chunk_id=chunk.id, source_type=chunk.source_type)
-    try:
-        data: dict[str, Any] = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        result.parse_error = str(exc)
-        logger.warning("LLM returned non-JSON for chunk %s: %s", chunk.id, exc)
-        return result
-
+def _parse_spine_data(data: dict[str, Any], result: ExtractionResult) -> None:
+    """Populate entities, properties, relationships from parsed JSON."""
     for e in data.get("entities", []):
         result.entities.append(
             RawEntity(
@@ -96,6 +100,98 @@ def extract(chunk: Chunk, llm: Any) -> ExtractionResult:
                 object=str(r.get("object", "")),
             )
         )
+
+
+# -- Three-pass functions ------------------------------------------------------
+
+
+def extract_spine(chunk: Chunk, llm: Any) -> ExtractionResult:
+    """Pass 1: extract entities, properties, relationships. Fatal on parse error."""
+    prompt = build_spine_prompt(chunk.content)
+    raw = llm.complete(prompt, temperature=0.0)
+    result = ExtractionResult(chunk_id=chunk.id, source_type=chunk.source_type)
+    try:
+        data: dict[str, Any] = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        result.parse_error = str(exc)
+        logger.warning("LLM spine pass returned non-JSON for chunk %s: %s", chunk.id, exc)
+        return result
+    _parse_spine_data(data, result)
+    return result
+
+
+def extract_grounding_candidates(
+    chunk: Chunk,
+    llm: Any,
+    entities: list[RawEntity],
+) -> list[RawGroundingCandidate]:
+    """Pass 2: match entities to external concepts. Returns empty list on any error."""
+    if not entities:
+        return []
+    entity_list = "\n".join(f"- {e.name} ({e.type})" for e in entities)
+    prompt = build_grounding_candidates_prompt(chunk.content, entity_list)
+    raw = llm.complete(prompt, temperature=0.0)
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return []
+    return [
+        RawGroundingCandidate(
+            entity_name=str(c.get("entity_name", "")),
+            wikidata_qid=str(c.get("wikidata_qid", "")),
+            label=str(c.get("label", "")),
+            category=str(c.get("category", "")),
+        )
+        for c in data.get("candidates", [])
+    ]
+
+
+def extract_observations(chunk: Chunk, llm: Any) -> list[RawObservation]:
+    """Pass 3: extract qualitative observations. Returns empty list on any error."""
+    prompt = build_observations_prompt(chunk.content)
+    raw = llm.complete(prompt, temperature=0.0)
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return []
+    return [
+        RawObservation(
+            entity_name=str(o.get("entity_name", "")),
+            type=str(o.get("type", "")),
+            description=str(o.get("description", "")),
+        )
+        for o in data.get("observations", [])
+    ]
+
+
+def extract_three_pass(chunk: Chunk, llm: Any) -> ExtractionResult:
+    """Three-pass extraction: spine -> grounding candidates -> observations.
+
+    Pass 1 (spine) is fatal on parse error; passes 2 and 3 degrade gracefully.
+    """
+    result = extract_spine(chunk, llm)
+    if result.parse_error:
+        return result
+    result.grounding_candidates = extract_grounding_candidates(chunk, llm, result.entities)
+    result.observations = extract_observations(chunk, llm)
+    return result
+
+
+# -- Single-pass (backward compatible) -----------------------------------------
+
+
+def extract(chunk: Chunk, llm: Any) -> ExtractionResult:
+    """Single-pass extraction using the combined prompt. Prefer extract_three_pass()."""
+    prompt = build_extraction_prompt(chunk.content)
+    raw = llm.complete(prompt, temperature=0.0)
+    result = ExtractionResult(chunk_id=chunk.id, source_type=chunk.source_type)
+    try:
+        data: dict[str, Any] = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        result.parse_error = str(exc)
+        logger.warning("LLM returned non-JSON for chunk %s: %s", chunk.id, exc)
+        return result
+    _parse_spine_data(data, result)
     for o in data.get("observations", []):
         result.observations.append(
             RawObservation(

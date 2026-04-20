@@ -104,6 +104,61 @@ CREATE TABLE IF NOT EXISTS observations (
 )
 """
 
+CREATE_CONSTRAINTS = """
+CREATE TABLE IF NOT EXISTS constraints (
+    id              BIGSERIAL    PRIMARY KEY,
+    entity_id       TEXT         NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
+    constraint_type TEXT         NOT NULL,
+    condition       TEXT         NOT NULL,
+    threshold       JSONB,
+    valid_from      TIMESTAMPTZ  NOT NULL,
+    valid_until     TIMESTAMPTZ,
+    vocabulary_version TEXT      NOT NULL,
+    payload         JSONB        NOT NULL DEFAULT '{}',
+    graph_version   BIGINT       NOT NULL DEFAULT 0,
+    CONSTRAINT constraints_type CHECK (
+        constraint_type IN ('performance', 'availability', 'legal', 'physical', 'social')
+    )
+)
+"""
+
+CREATE_PROCESSES = """
+CREATE TABLE IF NOT EXISTS processes (
+    id              TEXT         PRIMARY KEY,
+    name            TEXT         NOT NULL,
+    name_normalized TEXT         NOT NULL,
+    stages          JSONB        NOT NULL,
+    inputs          JSONB        NOT NULL,
+    outputs         JSONB        NOT NULL,
+    slo             TEXT,
+    valid_from      TIMESTAMPTZ  NOT NULL,
+    valid_until     TIMESTAMPTZ,
+    vocabulary_version TEXT      NOT NULL,
+    payload         JSONB        NOT NULL DEFAULT '{}',
+    graph_version   BIGINT       NOT NULL DEFAULT 0
+)
+"""
+
+CREATE_PROCESSES_UNIQUE_NAME = """
+CREATE UNIQUE INDEX IF NOT EXISTS processes_name_uidx ON processes (name_normalized)
+"""
+
+CREATE_DECISIONS = """
+CREATE TABLE IF NOT EXISTS decisions (
+    id              TEXT         PRIMARY KEY,
+    what            TEXT         NOT NULL,
+    why             TEXT         NOT NULL,
+    tradeoffs       JSONB        NOT NULL,
+    decided_when    TIMESTAMPTZ  NOT NULL,
+    who             JSONB        NOT NULL,
+    valid_from      TIMESTAMPTZ  NOT NULL,
+    valid_until     TIMESTAMPTZ,
+    vocabulary_version TEXT      NOT NULL,
+    payload         JSONB        NOT NULL DEFAULT '{}',
+    graph_version   BIGINT       NOT NULL DEFAULT 0
+)
+"""
+
 # Ordered list of all DDL statements to apply when creating schema from scratch
 ALL_DDL: tuple[str, ...] = (
     ENABLE_PGVECTOR,
@@ -114,10 +169,17 @@ ALL_DDL: tuple[str, ...] = (
     CREATE_PROPERTIES,
     CREATE_RELATIONSHIPS,
     CREATE_OBSERVATIONS,
+    CREATE_CONSTRAINTS,
+    CREATE_PROCESSES,
+    CREATE_PROCESSES_UNIQUE_NAME,
+    CREATE_DECISIONS,
 )
 
 # Teardown order respects FK constraints
 DROP_ALL_DDL: tuple[str, ...] = (
+    "DROP TABLE IF EXISTS decisions CASCADE",
+    "DROP TABLE IF EXISTS processes CASCADE",
+    "DROP TABLE IF EXISTS constraints CASCADE",
     "DROP TABLE IF EXISTS observations CASCADE",
     "DROP TABLE IF EXISTS relationships CASCADE",
     "DROP TABLE IF EXISTS properties CASCADE",
