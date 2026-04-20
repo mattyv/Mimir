@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import math
+import os
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
@@ -22,9 +23,9 @@ from psycopg.rows import dict_row
 
 _VOCAB_PATH = Path(__file__).parent.parent / "src" / "mimir" / "vocabulary" / "vocabulary.yaml"
 
-# ── Test database DSN (running system PostgreSQL, unix socket) ────────────────
+# ── Test database DSN — honours DATABASE_URL if set (CI), else unix socket ───
 
-_TEST_DSN = "dbname=mimir_test user=root"
+_TEST_DSN = os.environ.get("DATABASE_URL", "dbname=mimir_test user=root")
 
 
 # ── Stub classes ───────────────────────────────────────────────────────────────
