@@ -5,6 +5,7 @@ Orchestrates: LLM extraction → node construction → upsert.
 
 from __future__ import annotations
 
+import json
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -14,6 +15,7 @@ import psycopg
 
 from mimir.adapters.base import Chunk
 from mimir.adapters.pii import scan_chunk
+from mimir.crawler.context import fetch_context_entities, format_context_for_prompt
 from mimir.crawler.extractor import ExtractionResult, extract_three_pass
 from mimir.grounder.wikidata import SPARQLClient, ground_entity
 from mimir.models.base import Grounding, GroundingTier, Source, Temporal, Visibility
@@ -79,12 +81,51 @@ class PipelineResult:
     pii_findings: list[str] = field(default_factory=list)
 
 
+def _upsert_placeholder(
+    name: str,
+    chunk: Chunk,
+    entity_repo: EntityRepository,
+    name_to_id: dict[str, str],
+) -> str:
+    """Create a low-confidence placeholder entity for an unresolved reference."""
+    import uuid as _uuid
+
+    placeholder_type = "schema:Thing"
+    e_id = str(_uuid.uuid5(_uuid.NAMESPACE_DNS, f"{name}:{placeholder_type}"))
+    placeholder = Entity(
+        id=e_id,
+        type=placeholder_type,
+        name=name,
+        description="",
+        created_at=datetime.now(UTC),
+        confidence=0.6,
+        grounding=Grounding(
+            tier=GroundingTier.ungrounded,
+            depth=0,
+            stop_reason="placeholder",
+        ),
+        temporal=_temporal(chunk),
+        visibility=_visibility(chunk),
+        vocabulary_version=_VOCAB_VERSION,
+    )
+    payload_patch = {"awaiting_corroboration": True}
+    entity_repo.upsert(placeholder)
+    # Patch payload to flag as placeholder
+    entity_repo._conn.execute(
+        "UPDATE entities SET payload = payload || %s::jsonb WHERE id = %s",
+        (json.dumps(payload_patch), e_id),
+    )
+    name_to_id[name] = e_id
+    return e_id
+
+
 def process_chunk(
     chunk: Chunk,
     llm: Any,
     conn: psycopg.Connection[dict[str, Any]],
     *,
     sparql_client: SPARQLClient | None = None,
+    embedder: Any | None = None,
 ) -> PipelineResult:
     """Run one chunk through the full pipeline inside the caller's transaction.
 
@@ -107,6 +148,11 @@ def process_chunk(
         log_pipeline_event(_logger, "chunk_skipped_pii", chunk.id, findings=result.pii_findings)
         _reg.counter("chunks_pii_skipped", source_type=chunk.source_type).inc()
         return result
+
+    # Fetch known-entity context for cross-chunk coreference
+    context_entities = fetch_context_entities(chunk, conn, embedder=embedder)
+    context_prefix = format_context_for_prompt(context_entities)
+    _ = context_prefix  # available for future prompt injection
 
     extraction: ExtractionResult = extract_three_pass(chunk, llm)
     if extraction.parse_error:
@@ -165,11 +211,9 @@ def process_chunk(
         subj_id = name_to_id.get(r_raw.subject)
         obj_id = name_to_id.get(r_raw.object)
         if subj_id is None:
-            result.unknown_entity_refs.append(r_raw.subject)
-            continue
+            subj_id = _upsert_placeholder(r_raw.subject, chunk, entity_repo, name_to_id)
         if obj_id is None:
-            result.unknown_entity_refs.append(r_raw.object)
-            continue
+            obj_id = _upsert_placeholder(r_raw.object, chunk, entity_repo, name_to_id)
         rel = Relationship(
             subject_id=subj_id,
             predicate=r_raw.predicate,

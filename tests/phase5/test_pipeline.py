@@ -76,9 +76,10 @@ def test_pipeline_inserts_observations(pg: psycopg.Connection[dict[str, Any]]) -
 
 
 @pytest.mark.phase5
-def test_pipeline_skips_relationship_with_unknown_entity(
+def test_pipeline_creates_placeholder_for_unknown_entity(
     pg: psycopg.Connection[dict[str, Any]],
 ) -> None:
+    # §2.3: unknown endpoints become placeholder entities so the relationship is persisted
     content = "service_a connects to unknown_b."
     payload = {
         "entities": [{"name": "service_a", "type": "auros:TradingService"}],
@@ -87,8 +88,8 @@ def test_pipeline_skips_relationship_with_unknown_entity(
         ],
     }
     result = process_chunk(_chunk(content), _llm(content, payload), pg)
-    assert result.relationships_inserted == 0
-    assert "unknown_b" in result.unknown_entity_refs
+    assert result.relationships_inserted == 1
+    assert "unknown_b" not in result.unknown_entity_refs
 
 
 @pytest.mark.phase5

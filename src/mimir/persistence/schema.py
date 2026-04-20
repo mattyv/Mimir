@@ -159,6 +159,47 @@ CREATE TABLE IF NOT EXISTS decisions (
 )
 """
 
+CREATE_RESOLUTION_QUEUE = """
+CREATE TABLE IF NOT EXISTS resolution_queue (
+    id            BIGSERIAL    PRIMARY KEY,
+    entity_a_id   TEXT         NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
+    entity_b_id   TEXT         NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
+    similarity    REAL         NOT NULL,
+    method        TEXT         NOT NULL DEFAULT 'embedding',
+    status        TEXT         NOT NULL DEFAULT 'pending'
+                               CHECK (status IN ('pending','approved','rejected')),
+    created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    resolved_at   TIMESTAMPTZ,
+    UNIQUE (entity_a_id, entity_b_id)
+)
+"""
+
+CREATE_SOURCE_SATURATION = """
+CREATE TABLE IF NOT EXISTS source_saturation (
+    id            BIGSERIAL    PRIMARY KEY,
+    source_type   TEXT         NOT NULL,
+    source_ref    TEXT         NOT NULL,
+    run_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    entities_new  INTEGER      NOT NULL DEFAULT 0,
+    entities_seen INTEGER      NOT NULL DEFAULT 0,
+    saturation_pct REAL        NOT NULL DEFAULT 0.0,
+    UNIQUE (source_type, source_ref, run_at)
+)
+"""
+
+CREATE_AUDIT_LOG = """
+CREATE TABLE IF NOT EXISTS audit_log (
+    id              BIGSERIAL    PRIMARY KEY,
+    table_name      TEXT         NOT NULL,
+    row_id          TEXT         NOT NULL,
+    operation       TEXT         NOT NULL CHECK (operation IN ('insert','update','delete')),
+    graph_version   BIGINT       NOT NULL DEFAULT 0,
+    worker_id       TEXT,
+    run_id          TEXT,
+    recorded_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+)
+"""
+
 # Ordered list of all DDL statements to apply when creating schema from scratch
 ALL_DDL: tuple[str, ...] = (
     ENABLE_PGVECTOR,
@@ -173,10 +214,16 @@ ALL_DDL: tuple[str, ...] = (
     CREATE_PROCESSES,
     CREATE_PROCESSES_UNIQUE_NAME,
     CREATE_DECISIONS,
+    CREATE_RESOLUTION_QUEUE,
+    CREATE_SOURCE_SATURATION,
+    CREATE_AUDIT_LOG,
 )
 
 # Teardown order respects FK constraints
 DROP_ALL_DDL: tuple[str, ...] = (
+    "DROP TABLE IF EXISTS audit_log CASCADE",
+    "DROP TABLE IF EXISTS source_saturation CASCADE",
+    "DROP TABLE IF EXISTS resolution_queue CASCADE",
     "DROP TABLE IF EXISTS decisions CASCADE",
     "DROP TABLE IF EXISTS processes CASCADE",
     "DROP TABLE IF EXISTS constraints CASCADE",

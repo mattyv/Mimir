@@ -110,24 +110,101 @@ def checksum_file(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def build_graph_context(
+    question: EvalQuestion,
+    tools_fn: Any,  # callable(tool_name: str, args: dict) -> dict
+) -> str:
+    """Build graph context string for a question by calling MCP tools.
+
+    Dispatch strategy based on category:
+    - "factual_lookup" / "policy_recall": search for keywords, return top entities
+    - "relationship_traversal": search + get_neighborhood of best match
+    - "cross_cutting" / "decision_history": search + cascade_risk
+    - default: search only
+
+    Returns a compact string suitable for prepending to the question.
+    """
+    import re
+
+    # Extract 2-3 keywords from question (simple heuristic: longest words)
+    words = re.findall(r"\b[a-zA-Z_]{4,}\b", question.question)
+    query = " ".join(sorted(set(words), key=len, reverse=True)[:3])
+    if not query:
+        return ""
+
+    try:
+        search_result = tools_fn("search", {"query": query, "limit": 5})
+        entities = search_result.get("results", [])
+    except Exception:
+        return ""
+
+    if not entities:
+        return ""
+
+    lines: list[str] = ["## Knowledge Graph Context"]
+
+    top_id: str = entities[0].get("id", "")
+    top_name: str = entities[0].get("name", "")
+
+    # Base: list matching entities
+    lines.append(f"\nRelevant entities for '{query}':")
+    for e in entities[:5]:
+        lines.append(
+            f"  - {e.get('name')} ({e.get('entity_type', '?')}): "
+            f"{(e.get('description') or '')[:100]}"
+        )
+
+    cat = question.category
+
+    if cat == "relationship_traversal" and top_id:
+        try:
+            nb = tools_fn("get_neighborhood", {"entity_id": top_id, "depth": 2})
+            edges = nb.get("edges", [])[:20]
+            if edges:
+                lines.append(f"\nRelationships around '{top_name}':")
+                for edge in edges:
+                    lines.append(
+                        f"  {edge.get('subject')} --[{edge.get('predicate')}]--> {edge.get('object')}"
+                    )
+        except Exception:
+            pass
+
+    elif cat in ("cross_cutting", "decision_history") and top_id:
+        try:
+            risk = tools_fn("entity_cascade_risk", {"entity_id": top_id})
+            downstream = risk.get("downstream_entities", [])[:10]
+            if downstream:
+                lines.append(
+                    f"\nDownstream from '{top_name}': {', '.join(str(d) for d in downstream)}"
+                )
+        except Exception:
+            pass
+
+    return "\n".join(lines)
+
+
 def run_eval(
     questions: list[EvalQuestion],
     llm: Any,
     *,
     judge: Callable[[EvalQuestion, str], float] | None = None,
     context_prefix: str = "",
+    graph_context_fn: Callable[[EvalQuestion], str] | None = None,
 ) -> EvalReport:
     """Run all questions through *llm* and return an EvalReport.
 
     Args:
-        questions:      List of EvalQuestion objects.
-        llm:            Object with a `.complete(prompt) -> str` method.
-        judge:          Optional scorer that returns a float 1–5.
-        context_prefix: Prepended to each question (e.g. world model context).
+        questions:        List of EvalQuestion objects.
+        llm:              Object with a `.complete(prompt) -> str` method.
+        judge:            Optional scorer that returns a float 1–5.
+        context_prefix:   Prepended to each question (e.g. world model context).
+        graph_context_fn: Optional function(question) → context string; takes
+                          priority over context_prefix when provided.
     """
     report = EvalReport(total=len(questions))
     for q in questions:
-        prompt = f"{context_prefix}\n\n{q.question}".strip() if context_prefix else q.question
+        ctx = graph_context_fn(q) if graph_context_fn else context_prefix
+        prompt = f"{ctx}\n\n{q.question}".strip() if ctx else q.question
         response = llm.complete(prompt)
         score: float | None = judge(q, response) if judge else None
         result = EvalResult(

@@ -10,6 +10,29 @@ import psycopg
 from mimir.resolution.embedder import _vec_sql
 
 
+def get_thresholds(
+    conn: psycopg.Connection[dict[str, Any]],
+    *,
+    bootstrap_count: int = 100,
+) -> tuple[float, float]:
+    """Return (auto_merge_threshold, review_threshold) based on entity count.
+
+    Bootstrap mode (fewer than bootstrap_count entities per type):
+      auto_merge=0.92, review=0.80
+    Normal mode:
+      auto_merge=0.92, review=0.85
+    The 'review' threshold is the lower bound — pairs in [review, auto_merge)
+    go to the queue; pairs at or above auto_merge are auto-merged.
+    """
+    row = conn.execute(
+        "SELECT COUNT(*) AS n FROM entities WHERE valid_until IS NULL"
+    ).fetchone()
+    n = int(row["n"]) if row else 0
+    if n < bootstrap_count:
+        return 0.92, 0.80  # bootstrap: broader review net
+    return 0.92, 0.85  # normal: tighter review net
+
+
 @dataclass
 class MergeCandidate:
     entity_a_id: str
@@ -59,7 +82,7 @@ def find_merge_candidates(
     conn: psycopg.Connection[dict[str, Any]],
     *,
     entity_type: str | None = None,
-    threshold: float = 0.85,
+    threshold: float = 0.85,  # kept for backward compat (used as review threshold)
     limit: int = 100,
 ) -> list[MergeCandidate]:
     """Return scored pairs of active entities that are likely duplicates.
