@@ -28,7 +28,7 @@ def expire_entity(
         "UPDATE entities SET valid_until = %s WHERE id = %s AND valid_until IS NULL RETURNING id",
         (ts, entity_id),
     )
-    return result.rowcount > 0
+    return int(result.rowcount) > 0
 
 
 def expire_relationship(
@@ -43,7 +43,7 @@ def expire_relationship(
         "UPDATE relationships SET valid_until = %s WHERE id = %s AND valid_until IS NULL RETURNING id",
         (ts, relationship_id),
     )
-    return result.rowcount > 0
+    return int(result.rowcount) > 0
 
 
 def expire_property(
@@ -58,7 +58,7 @@ def expire_property(
         "UPDATE properties SET valid_until = %s WHERE id = %s AND valid_until IS NULL RETURNING id",
         (ts, property_id),
     )
-    return result.rowcount > 0
+    return int(result.rowcount) > 0
 
 
 def supersede_entity(
@@ -80,7 +80,7 @@ def supersede_entity(
         """,
         (ts, new_id, old_id),
     )
-    return result.rowcount > 0
+    return int(result.rowcount) > 0
 
 
 def active_entities_at(

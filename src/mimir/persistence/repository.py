@@ -192,7 +192,7 @@ class EntityRepository:
             "DELETE FROM entities WHERE id = %s RETURNING id",
             (entity_id,),
         )
-        return result.rowcount > 0
+        return int(result.rowcount) > 0
 
     def count(self) -> int:
         """Return total number of entity rows."""
