@@ -12,6 +12,9 @@ version: "0.1.0"
 # ── Entity types (~20) ────────────────────────────────────────────────────────
 entity_types:
   # schema.org base types
+  - iri: "schema:Thing"
+    label: "Thing"
+
   - iri: "schema:Organization"
     label: "Organization"
 

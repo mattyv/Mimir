@@ -1,0 +1,55 @@
+name: mimir
+prefect-version: "3.0.0"
+
+# Build and push steps (no-op for local dev)
+build: null
+push: null
+
+pull:
+  - prefect.deployments.steps.set_working_directory:
+      directory: /home/user/Mimir
+
+deployments:
+  - name: ingest-hourly
+    entrypoint: flows/ingest.py:ingest_flow
+    description: "Pull source chunks and run pipeline"
+    schedules:
+      - cron: "0 * * * *"
+        timezone: "UTC"
+        active: true
+    parameters: {}
+    work_pool:
+      name: default-process-pool
+
+  - name: ground-daily
+    entrypoint: flows/ground.py:ground_flow
+    description: "Wikidata grounding pass over ungrounded entities"
+    schedules:
+      - cron: "0 2 * * *"
+        timezone: "UTC"
+        active: true
+    parameters: {}
+    work_pool:
+      name: default-process-pool
+
+  - name: retract-daily
+    entrypoint: flows/retract.py:retract_flow
+    description: "Expire axioms whose source no longer exists"
+    schedules:
+      - cron: "0 3 * * *"
+        timezone: "UTC"
+        active: true
+    parameters: {}
+    work_pool:
+      name: default-process-pool
+
+  - name: normalize-weekly
+    entrypoint: flows/normalize.py:normalize_flow
+    description: "Embedding-based entity resolution and deduplication"
+    schedules:
+      - cron: "0 4 * * 0"
+        timezone: "UTC"
+        active: true
+    parameters: {}
+    work_pool:
+      name: default-process-pool

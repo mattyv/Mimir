@@ -22,12 +22,17 @@ from mimir.models.base import Grounding, GroundingTier, Source, Temporal, Visibi
 from mimir.models.nodes import Entity, Observation, Property, Relationship
 from mimir.observability.logging import get_logger, log_pipeline_event
 from mimir.observability.metrics import get_registry
+from mimir.observability.saturation import record_saturation
 from mimir.persistence.repository import (
     EntityRepository,
     ObservationRepository,
     PropertyRepository,
     RelationshipRepository,
 )
+from mimir.resolution.candidates import find_similar_by_embedding, get_thresholds
+from mimir.resolution.embedder import compute_embedding, update_entity_embedding
+from mimir.resolution.merger import merge_entities
+from mimir.resolution.queue import enqueue_candidate
 
 _logger = get_logger("mimir.pipeline")
 _reg = get_registry()
@@ -167,6 +172,8 @@ def process_chunk(
     obs_repo = ObservationRepository(conn)
 
     name_to_id: dict[str, str] = {}
+    entities_new = 0
+    entities_seen = 0
 
     for e_raw in extraction.entities:
         entity_type = e_raw.type or "schema:SoftwareApplication"
@@ -183,7 +190,11 @@ def process_chunk(
             visibility=_visibility(chunk),
             vocabulary_version=_VOCAB_VERSION,
         )
-        entity_repo.upsert(entity)
+        inserted = entity_repo.upsert(entity)
+        if inserted:
+            entities_new += 1
+        else:
+            entities_seen += 1
         name_to_id[e_raw.name] = e_id
         result.entities_upserted += 1
 
@@ -253,6 +264,38 @@ def process_chunk(
             match = ground_entity(entity_id, entity_name, sparql_client, conn)
             if match:
                 result.entities_grounded += 1
+
+    # Optional embedding computation + resolution pass
+    if embedder is not None:
+        auto_merge_threshold, review_threshold = get_thresholds(conn)
+        for _entity_name, entity_id in name_to_id.items():
+            try:
+                entity_row = entity_repo.get(entity_id)
+                if entity_row is None:
+                    continue
+                text = f"{entity_row.get('name', '')} {entity_row.get('description', '')}".strip()
+                embedding = compute_embedding(text, embedder)
+                update_entity_embedding(entity_id, embedding, conn)
+                entity_type = str(entity_row.get("entity_type", ""))
+                similar = find_similar_by_embedding(
+                    embedding,
+                    entity_type,
+                    conn,
+                    exclude_id=entity_id,
+                    threshold=review_threshold,
+                )
+                for candidate in similar:
+                    sim = float(candidate["similarity"])
+                    other_id = str(candidate["id"])
+                    if sim >= auto_merge_threshold:
+                        merge_entities(entity_id, other_id, conn)
+                    else:
+                        enqueue_candidate(entity_id, other_id, sim, conn)
+            except Exception:
+                pass
+
+    # Record saturation for this source reference
+    record_saturation(chunk.source_type, chunk.reference, entities_new, entities_seen, conn)
 
     _reg.counter("entities_upserted", source_type=chunk.source_type).inc(
         float(result.entities_upserted)
