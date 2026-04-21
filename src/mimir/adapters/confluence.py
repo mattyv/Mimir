@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import httpx
+import psycopg
 
 from mimir.adapters.base import Chunk
 
@@ -52,6 +53,50 @@ class ConfluenceAdapter:
         resp.raise_for_status()
         return self._to_chunk(resp.json())
 
+    def fetch_page_version(self, page_id: str) -> tuple[int, str] | None:
+        """Return (version_number, reference_url) without downloading the page body.
+
+        Uses a metadata-only fetch (expand=version only) — much cheaper than
+        fetch_page() when you only need to check whether the page changed.
+        Returns None if the page is not found (404).
+        """
+        resp = self._client.get(
+            f"{self._base}/wiki/rest/api/content/{page_id}",
+            params={"expand": "version"},
+        )
+        if resp.status_code == 404:
+            return None
+        resp.raise_for_status()
+        data = resp.json()
+        version_number: int = data.get("version", {}).get("number", 0)
+        web_ui: str = data.get("_links", {}).get("webui", "")
+        reference = f"{self._base}{web_ui}" if web_ui else f"{self._base}/pages/{page_id}"
+        return version_number, reference
+
+    def fetch_changed(
+        self,
+        page_ids: list[str],
+        conn: psycopg.Connection[Any],
+    ) -> list[str]:
+        """Return the subset of page_ids whose Confluence version differs from stored.
+
+        Makes one cheap metadata-only request per page_id.  Pages that return
+        404 (deleted) are excluded from the result — callers should handle
+        deletions separately via retract_by_source().
+        """
+        from mimir.adapters.version_store import get_version
+
+        changed: list[str] = []
+        for pid in page_ids:
+            result = self.fetch_page_version(pid)
+            if result is None:
+                continue
+            version_number, reference = result
+            stored = get_version("confluence", reference, conn)
+            if stored is None or stored != str(version_number):
+                changed.append(pid)
+        return changed
+
     def search(self, space_key: str, query: str, limit: int = 25) -> list[Chunk]:
         """Full-text search within a Confluence space."""
         resp = self._client.get(
@@ -72,6 +117,7 @@ class ConfluenceAdapter:
         page_id = page.get("id", "")
         web_ui = page.get("_links", {}).get("webui", "")
         reference = f"{self._base}{web_ui}" if web_ui else f"{self._base}/pages/{page_id}"
+        version_number: int = page.get("version", {}).get("number", 0)
         return Chunk(
             id=f"confluence_{page_id}",
             source_type="confluence",
@@ -79,5 +125,10 @@ class ConfluenceAdapter:
             acl=[f"space:{space_key}"] if space_key else [],
             retrieved_at=datetime.now(UTC),
             reference=reference,
-            metadata={"page_id": page_id, "space_key": space_key, "title": title},
+            metadata={
+                "page_id": page_id,
+                "space_key": space_key,
+                "title": title,
+                "version_number": version_number,
+            },
         )
