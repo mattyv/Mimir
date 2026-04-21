@@ -35,10 +35,10 @@ def retract_by_source(
     *,
     at: datetime | None = None,
 ) -> RetractionResult:
-    """Expire all active axioms whose sole source is *source_ref*.
+    """Expire all active axioms whose payload source reference matches *source_ref*.
 
-    An axiom is considered "solely" from this source when its payload->source->reference
-    matches source_ref and no other corroborating source row exists.
+    Any axiom whose payload->source->reference equals source_ref is expired,
+    regardless of whether other corroborating sources exist.
     Only expires rows with valid_until IS NULL.
     """
     ts = at or datetime.now(UTC)

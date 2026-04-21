@@ -17,6 +17,7 @@ at_version : int | None
 
 from __future__ import annotations
 
+import contextlib
 import json
 import math
 import unicodedata
@@ -142,6 +143,24 @@ def _build_where(
     return f"WHERE {fragments}", params
 
 
+def _audit(
+    conn: psycopg.Connection[dict[str, Any]],
+    table_name: str,
+    row_id: str,
+    operation: str,
+    graph_version: int,
+) -> None:
+    """Append one row to audit_log. Best-effort — silently skips on error."""
+    with contextlib.suppress(Exception):
+        conn.execute(
+            """
+            INSERT INTO audit_log (table_name, row_id, operation, graph_version)
+            VALUES (%s, %s, %s, %s)
+            """,
+            (table_name, row_id, operation, graph_version),
+        )
+
+
 # ---------------------------------------------------------------------------
 # EntityRepository
 # ---------------------------------------------------------------------------
@@ -206,7 +225,9 @@ class EntityRepository:
             ),
         )
         row = result.fetchone()
-        return bool(row["inserted"]) if row else True
+        inserted = bool(row["inserted"]) if row else True
+        _audit(self._conn, "entities", entity.id, "insert" if inserted else "update", version)
+        return inserted
 
     def get(
         self,
@@ -247,7 +268,7 @@ class EntityRepository:
             f"SELECT * FROM entities e {where} ORDER BY e.name LIMIT %s OFFSET %s",
             params + [limit, offset],
         ).fetchall()
-        return [dict(r) for r in rows]
+        return [apply_confidence_decay(dict(r), apply_decay=True) for r in rows]
 
     def delete(self, entity_id: str) -> bool:
         """Hard-delete an entity and all dependent rows (via CASCADE).
@@ -313,7 +334,9 @@ class PropertyRepository:
                 version,
             ),
         ).fetchone()
-        return int(row["id"]) if row else 0
+        prop_id = int(row["id"]) if row else 0
+        _audit(self._conn, "properties", str(prop_id), "insert", version)
+        return prop_id
 
     def list_for_entity(
         self,
@@ -332,7 +355,7 @@ class PropertyRepository:
             f"SELECT * FROM properties p {where} ORDER BY p.key, p.id",
             params,
         ).fetchall()
-        return [dict(r) for r in rows]
+        return [apply_confidence_decay(dict(r), apply_decay=True) for r in rows]
 
 
 # ---------------------------------------------------------------------------
@@ -380,7 +403,9 @@ class RelationshipRepository:
                 version,
             ),
         ).fetchone()
-        return int(row["id"]) if row else 0
+        rel_id = int(row["id"]) if row else 0
+        _audit(self._conn, "relationships", str(rel_id), "insert", version)
+        return rel_id
 
     def list_for_subject(
         self,
@@ -466,7 +491,9 @@ class ObservationRepository:
                 version,
             ),
         ).fetchone()
-        return int(row["id"]) if row else 0
+        obs_id = int(row["id"]) if row else 0
+        _audit(self._conn, "observations", str(obs_id), "insert", version)
+        return obs_id
 
     def list_for_entity(
         self,
@@ -542,7 +569,9 @@ class ConstraintRepository:
                 version,
             ),
         ).fetchone()
-        return int(row["id"]) if row else 0
+        con_id = int(row["id"]) if row else 0
+        _audit(self._conn, "constraints", str(con_id), "insert", version)
+        return con_id
 
     def list_for_entity(
         self,
@@ -636,7 +665,9 @@ class ProcessRepository:
             ),
         )
         row = result.fetchone()
-        return bool(row["inserted"]) if row else True
+        proc_inserted = bool(row["inserted"]) if row else True
+        _audit(self._conn, "processes", process.id, "insert" if proc_inserted else "update", version)
+        return proc_inserted
 
     def get(self, process_id: str, *, as_of: datetime | None = None) -> dict[str, Any] | None:
         """Fetch a process by id."""
@@ -731,7 +762,9 @@ class DecisionRepository:
             ),
         )
         row = result.fetchone()
-        return bool(row["inserted"]) if row else True
+        dec_inserted = bool(row["inserted"]) if row else True
+        _audit(self._conn, "decisions", decision.id, "insert" if dec_inserted else "update", version)
+        return dec_inserted
 
     def get(self, decision_id: str, *, as_of: datetime | None = None) -> dict[str, Any] | None:
         """Fetch a decision by id."""

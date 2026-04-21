@@ -178,16 +178,16 @@ def target_entity_count(
     """Estimate target entity count for a sub-domain (§10.2).
 
     Base counts per Cynefin domain:
-      clear=50, complicated=150, complex=300, chaotic=500, confused=100
+      clear=150, complicated=1500, complex=2500, chaotic=100, confused=200
 
     Multiplied by regularity_factor (0.5–2.0) and depth_factor (0.5–2.0).
     """
     _BASES = {
-        "clear": 50,
-        "complicated": 150,
-        "complex": 300,
-        "chaotic": 500,
-        "confused": 100,
+        "clear": 150,
+        "complicated": 1500,
+        "complex": 2500,
+        "chaotic": 100,
+        "confused": 200,
     }
-    base = _BASES.get(cynefin_domain, 100)
+    base = _BASES.get(cynefin_domain, 200)
     return max(1, round(base * regularity_factor * depth_factor))

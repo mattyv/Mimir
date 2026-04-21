@@ -60,21 +60,21 @@ def test_observability_dimensions_depth_nonnegative() -> None:
 
 
 def test_target_entity_count_clear() -> None:
-    assert target_entity_count("clear") == 50
+    assert target_entity_count("clear") == 150
 
 
 def test_target_entity_count_complex() -> None:
-    assert target_entity_count("complex") == 300
+    assert target_entity_count("complex") == 2500
 
 
 def test_target_entity_count_with_factors() -> None:
-    # 150 * 2.0 * 1.5 = 450
-    assert target_entity_count("complicated", regularity_factor=2.0, depth_factor=1.5) == 450
+    # 1500 * 2.0 * 1.5 = 4500
+    assert target_entity_count("complicated", regularity_factor=2.0, depth_factor=1.5) == 4500
 
 
 def test_target_entity_count_unknown_domain() -> None:
-    # Unknown domain falls back to base=100
-    assert target_entity_count("unknown_domain") == 100
+    # Unknown domain falls back to base=200
+    assert target_entity_count("unknown_domain") == 200
 
 
 def test_target_entity_count_minimum_one() -> None:

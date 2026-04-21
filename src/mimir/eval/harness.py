@@ -126,9 +126,15 @@ def build_graph_context(
     """
     import re
 
-    # Extract 2-3 keywords from question (simple heuristic: longest words)
-    words = re.findall(r"\b[a-zA-Z_]{4,}\b", question.question)
-    query = " ".join(sorted(set(words), key=len, reverse=True)[:3])
+    _STOP_WORDS = {
+        "what", "which", "where", "when", "who", "how", "why", "does", "did",
+        "are", "the", "and", "for", "with", "that", "this", "have", "has",
+        "from", "into", "about", "list", "show", "give", "tell", "explain",
+        "many", "much", "all", "any", "can", "could", "would", "should",
+    }
+    words = re.findall(r"\b[a-zA-Z_]{3,}\b", question.question)
+    filtered = [w.lower() for w in words if w.lower() not in _STOP_WORDS]
+    query = " ".join(sorted(set(filtered), key=len, reverse=True)[:3])
     if not query:
         return ""
 
@@ -251,8 +257,6 @@ def run_comparison(
 
     report = ComparisonReport(label_a=label_a, label_b=label_b, total=len(questions))
 
-    # Collect all pairs first
-    raw_pairs: list[tuple[EvalQuestion, str, str]] = []
     for q in questions:
         ctx_a = context_fn_a(q) if context_fn_a else ""
         ctx_b = context_fn_b(q) if context_fn_b else ""
@@ -260,28 +264,20 @@ def run_comparison(
         prompt_b = f"{ctx_b}\n\n{q.question}".strip() if ctx_b else q.question
         resp_a = llm_a.complete(prompt_a)
         resp_b = llm_b.complete(prompt_b)
-        raw_pairs.append((q, resp_a, resp_b))
 
-    # Shuffle order for blind grading (judge doesn't know which is A or B)
-    shuffled = list(raw_pairs)
-    random.shuffle(shuffled)
+        # Blind shuffle: flip which response the judge sees first
+        flip = random.random() < 0.5
+        resp_x, resp_y = (resp_b, resp_a) if flip else (resp_a, resp_b)
 
-    # Build lookup from question id → original pair order
-    pair_map: dict[str, tuple[str, str]] = {q.id: (a, b) for q, a, b in raw_pairs}
-
-    for q, resp_x, resp_y in shuffled:
-        pair = ComparisonPair(
-            question=q, response_a=pair_map[q.id][0], response_b=pair_map[q.id][1]
-        )
+        pair = ComparisonPair(question=q, response_a=resp_a, response_b=resp_b)
 
         if judge is not None:
             score_x, score_y = judge(q, resp_x, resp_y)
-            # Determine which shuffled slot corresponds to A vs B
-            orig_a, orig_b = pair_map[q.id]
-            if resp_x == orig_a:
-                pair.score_a, pair.score_b = score_x, score_y
-            else:
+            # Un-flip scores back to A/B order
+            if flip:
                 pair.score_a, pair.score_b = score_y, score_x
+            else:
+                pair.score_a, pair.score_b = score_x, score_y
             report.scored += 1
 
         report.pairs.append(pair)

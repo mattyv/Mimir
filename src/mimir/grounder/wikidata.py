@@ -10,6 +10,7 @@ import json
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from mimir.grounder.cache import get_cached, put_cached
 from mimir.models.base import GroundingTier
 
 
@@ -54,11 +55,18 @@ def find_wikidata_match(
     client: SPARQLClient,
 ) -> WikidataMatch | None:
     """Return the best Wikidata match for *name*, or None if not found."""
+    hit, cached_qid, cached_label = get_cached(name)
+    if hit:
+        if cached_qid is None:
+            return None
+        return WikidataMatch(qid=cached_qid, label=cached_label, description="", score=1.0)
+
     query = _LABEL_QUERY_TEMPLATE.format(name=name.replace('"', '\\"'))
     result = client.query(query)
 
     bindings = result.get("results", {}).get("bindings", [])
     if not bindings:
+        put_cached(name, None)
         return None
 
     first = bindings[0]
@@ -68,6 +76,7 @@ def find_wikidata_match(
     desc: str = first.get("itemDescription", {}).get("value", "")
 
     score = 1.0 if label.lower() == name.lower() else 0.5
+    put_cached(name, qid, label)
     return WikidataMatch(qid=qid, label=label, description=desc, score=score)
 
 
@@ -193,7 +202,6 @@ def ground_entity_recursive(
     *,
     depth_cap: int = 4,
     budget: int = 25,
-    confidence_floor: float = 0.9,
 ) -> list[tuple[str, str]]:
     """Ground entity and recursively fetch ancestor concepts.
 

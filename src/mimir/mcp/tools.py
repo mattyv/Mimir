@@ -87,7 +87,12 @@ def tool_list_entities(
     conn: psycopg.Connection[dict[str, Any]],
     caller_groups: set[str],
 ) -> dict[str, Any]:
-    """List active entities, filtered by type and ACL."""
+    """List active entities, filtered by type and ACL.
+
+    Pagination uses SQL OFFSET which rescans from the first row on each page.
+    For large result sets this is O(offset) per page; prefer filtering by
+    entity_type or using embedding-based search for deep pagination.
+    """
     entity_type: str | None = args.get("entity_type")
     limit: int = int(args.get("limit", 50))
     offset: int = int(args.get("offset", 0))
@@ -486,7 +491,13 @@ def tool_ground_axiom(
     conn: psycopg.Connection[dict[str, Any]],
     caller_groups: set[str],
 ) -> dict[str, Any]:
-    """On-demand grounding trigger for an entity via Wikidata."""
+    """On-demand grounding trigger for an entity via Wikidata.
+
+    This tool is a stub: it verifies the entity exists and the caller has
+    access, then returns a status indicating live grounding requires a
+    sparql_client to be injected at call-site.  Full grounding is performed
+    by ground_entity() in mimir.grounder.wikidata when wired in.
+    """
     entity_id: str = args["entity_id"]
     repo = EntityRepository(conn)
     row = repo.get(entity_id)
