@@ -6,6 +6,7 @@ Results are cached in-process to avoid redundant SPARQL calls.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -25,6 +26,18 @@ class WikidataMatch:
     description: str
     score: float  # 1.0 = exact label match, 0.5 = partial
 
+
+_ANCESTOR_QUERY_TEMPLATE = """
+SELECT ?ancestor ?ancestorLabel WHERE {{
+  {{ <{qid_uri}> wdt:P31 ?ancestor . }}
+  UNION
+  {{ <{qid_uri}> wdt:P279 ?ancestor . }}
+  UNION
+  {{ <{qid_uri}> wdt:P361 ?ancestor . }}
+  SERVICE wikibase:label {{ bd:serviceParam wikibase:language "en" . }}
+}}
+LIMIT 10
+"""
 
 _LABEL_QUERY_TEMPLATE = """
 SELECT ?item ?itemLabel ?itemDescription WHERE {{
@@ -116,3 +129,94 @@ def ground_entity(
         (match.qid, match.label, new_tier.value, match.qid, entity_id),
     )
     return match
+
+
+def find_ancestor_qids(
+    qid: str,
+    client: SPARQLClient,
+    *,
+    depth_cap: int = 4,
+    budget: int = 25,
+    _seen: set[str] | None = None,
+    _depth: int = 0,
+) -> list[tuple[str, str]]:
+    """Recursively fetch parent concepts (instance_of / subclass_of / part_of).
+
+    Returns list of (qid, label) tuples, excluding already-seen QIDs.
+    Stops at depth_cap or when budget is exhausted.
+    Cycle detection via _seen set of QIDs.
+    """
+    if _seen is None:
+        _seen = {qid}
+    if _depth >= depth_cap or budget <= 0:
+        return []
+
+    qid_uri = f"http://www.wikidata.org/entity/{qid}"
+    try:
+        result = client.query(_ANCESTOR_QUERY_TEMPLATE.format(qid_uri=qid_uri))
+    except Exception:
+        return []
+
+    bindings = result.get("results", {}).get("bindings", [])
+    ancestors: list[tuple[str, str]] = []
+    remaining_budget = budget - 1
+
+    for b in bindings:
+        uri = b.get("ancestor", {}).get("value", "")
+        label = b.get("ancestorLabel", {}).get("value", "")
+        ancestor_qid = uri.rsplit("/", 1)[-1] if "/" in uri else uri
+        if not ancestor_qid or ancestor_qid in _seen:
+            continue
+        _seen.add(ancestor_qid)
+        ancestors.append((ancestor_qid, label))
+        sub = find_ancestor_qids(
+            ancestor_qid,
+            client,
+            depth_cap=depth_cap,
+            budget=remaining_budget,
+            _seen=_seen,
+            _depth=_depth + 1,
+        )
+        remaining_budget -= len(sub)
+        ancestors.extend(sub)
+        if remaining_budget <= 0:
+            break
+
+    return ancestors
+
+
+def ground_entity_recursive(
+    entity_id: str,
+    name: str,
+    client: SPARQLClient,
+    conn: Any,
+    *,
+    depth_cap: int = 4,
+    budget: int = 25,
+    confidence_floor: float = 0.9,
+) -> list[tuple[str, str]]:
+    """Ground entity and recursively fetch ancestor concepts.
+
+    Calls ground_entity() first, then fetches ancestors and stores them
+    in the entity payload as 'wikidata_ancestors' list.
+    Returns list of (qid, label) ancestor tuples added.
+    """
+    match = ground_entity(entity_id, name, client, conn)
+    if match is None:
+        return []
+
+    ancestors = find_ancestor_qids(
+        match.qid,
+        client,
+        depth_cap=depth_cap,
+        budget=budget,
+    )
+    if not ancestors:
+        return []
+
+    ancestor_list = [{"qid": q, "label": lbl} for q, lbl in ancestors]
+    conn.execute(
+        "UPDATE entities SET payload = payload || jsonb_build_object('wikidata_ancestors', %s::jsonb) WHERE id = %s",
+        (json.dumps(ancestor_list), entity_id),
+    )
+    return ancestors

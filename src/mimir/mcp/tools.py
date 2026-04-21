@@ -10,6 +10,7 @@ independently without starting the server.
 from __future__ import annotations
 
 import dataclasses
+import time
 from typing import Any
 
 import networkx as nx
@@ -36,6 +37,28 @@ def _acl_filter(rows: list[dict[str, Any]], caller_groups: set[str]) -> list[dic
     return [r for r in rows if _acl_allowed(r, caller_groups)]
 
 
+def _cache_meta(conn: psycopg.Connection[dict[str, Any]]) -> dict[str, Any]:
+    """Return cache_key, graph_version for embedding into tool responses."""
+    from mimir.persistence.graph_version import current_graph_version
+
+    v = current_graph_version(conn)
+    return {
+        "graph_version": v,
+        "cache_key": f"v{v}",
+        "valid_until": int(time.time()) + 300,  # 5 min TTL
+    }
+
+
+def _redact_entity(row: dict[str, Any]) -> dict[str, Any]:
+    """Return a redacted stub preserving only id, type, entity_type."""
+    return {
+        "id": row.get("id"),
+        "entity_type": row.get("entity_type"),
+        "name": "[REDACTED]",
+        "redacted": True,
+    }
+
+
 def tool_get_entity(
     args: dict[str, Any],
     conn: psycopg.Connection[dict[str, Any]],
@@ -43,6 +66,7 @@ def tool_get_entity(
 ) -> dict[str, Any]:
     """Fetch a single entity by id, respecting ACL."""
     entity_id: str = args["entity_id"]
+    redact_restricted: bool = bool(args.get("redact_restricted", False))
     repo = EntityRepository(conn)
     row = repo.get(entity_id)
     if row is None:
@@ -51,9 +75,11 @@ def tool_get_entity(
     vis = row.get("payload", {}).get("visibility", {})
     decision = check_access(vis.get("acl", []), vis.get("sensitivity", "internal"), caller_groups)
     if not decision.allowed:
+        if redact_restricted and vis.get("sensitivity", "internal") != "restricted":
+            return {"entity": _redact_entity(row), **_cache_meta(conn)}
         return {"error": "forbidden", "entity_id": entity_id}
 
-    return {"entity": row}
+    return {"entity": row, **_cache_meta(conn)}
 
 
 def tool_list_entities(
@@ -64,10 +90,29 @@ def tool_list_entities(
     """List active entities, filtered by type and ACL."""
     entity_type: str | None = args.get("entity_type")
     limit: int = int(args.get("limit", 50))
+    offset: int = int(args.get("offset", 0))
+    redact_restricted: bool = bool(args.get("redact_restricted", False))
     repo = EntityRepository(conn)
-    rows = repo.list_active(entity_type=entity_type, limit=limit)
-    visible = _acl_filter(rows, caller_groups)
-    return {"entities": visible, "count": len(visible)}
+    rows = repo.list_active(entity_type=entity_type, limit=limit, offset=offset)
+
+    result_entities: list[dict[str, Any]] = []
+    for row in rows:
+        vis = row.get("payload", {}).get("visibility", {})
+        decision = check_access(
+            vis.get("acl", []), vis.get("sensitivity", "internal"), caller_groups
+        )
+        if decision.allowed:
+            result_entities.append(row)
+        elif redact_restricted and vis.get("sensitivity", "internal") != "restricted":
+            result_entities.append(_redact_entity(row))
+
+    return {
+        "entities": result_entities,
+        "count": len(result_entities),
+        "offset": offset,
+        "limit": limit,
+        **_cache_meta(conn),
+    }
 
 
 def tool_classify_entity(
@@ -257,32 +302,61 @@ def tool_search(
     args: dict[str, Any],
     conn: psycopg.Connection[dict[str, Any]],
     caller_groups: set[str],
+    *,
+    embedder: Any | None = None,
 ) -> dict[str, Any]:
-    """Full-text search entities by name (embedding search when available)."""
+    """Search entities by name/description, using embedding similarity when available."""
     query: str = args["query"]
     types: list[str] | None = args.get("types")
     limit: int = min(int(args.get("limit", 20)), 50)
 
-    # Name-based fallback search (embedding search requires embedder injection)
-    type_clause = "AND entity_type = ANY(%s)" if types else ""
-    type_params: list[Any] = [types] if types else []
+    raw: list[dict[str, Any]] = []
 
-    rows = conn.execute(
-        f"""
-        SELECT * FROM entities
-         WHERE valid_until IS NULL
-           AND (name_normalized ILIKE %s OR description ILIKE %s)
-           {type_clause}
-         ORDER BY name
-         LIMIT %s
-        """,
-        [f"%{query.lower()}%", f"%{query}%"] + type_params + [limit],
-    ).fetchall()
+    # Try embedding-based search first
+    if embedder is not None:
+        try:
+            from mimir.resolution.embedder import _vec_sql, compute_embedding
 
-    raw = [dict(r) for r in rows]
+            vec = compute_embedding(query[:512], embedder)
+            vec_lit = _vec_sql(vec)
+            type_clause = "AND entity_type = ANY(%s)" if types else ""
+            type_params: list[Any] = [types] if types else []
+            emb_rows = conn.execute(
+                f"""
+                SELECT *, (1 - (embedding <=> %s::vector)) AS _sim
+                  FROM entities
+                 WHERE valid_until IS NULL
+                   AND embedding IS NOT NULL
+                   {type_clause}
+                 ORDER BY embedding <=> %s::vector
+                 LIMIT %s
+                """,
+                [vec_lit] + type_params + [vec_lit, limit],
+            ).fetchall()
+            raw = [dict(r) for r in emb_rows]
+        except Exception:
+            raw = []
+
+    # Fallback to ILIKE
+    if not raw:
+        type_clause2 = "AND entity_type = ANY(%s)" if types else ""
+        type_params2: list[Any] = [types] if types else []
+        rows = conn.execute(
+            f"""
+            SELECT * FROM entities
+             WHERE valid_until IS NULL
+               AND (name_normalized ILIKE %s OR description ILIKE %s)
+               {type_clause2}
+             ORDER BY name
+             LIMIT %s
+            """,
+            [f"%{query.lower()}%", f"%{query}%"] + type_params2 + [limit],
+        ).fetchall()
+        raw = [dict(r) for r in rows]
+
     visible = _acl_filter(raw, caller_groups)
     capped = visible[:limit]
-    return {"results": capped, "count": len(capped), "query": query}
+    return {"results": capped, "count": len(capped), "query": query, **_cache_meta(conn)}
 
 
 def tool_get_contradictions(
@@ -366,6 +440,72 @@ def tool_explain_axiom(
     }
 
 
+def tool_health(
+    args: dict[str, Any],
+    conn: psycopg.Connection[dict[str, Any]],
+) -> dict[str, Any]:
+    """Return graph health snapshot: version, entity count, last update."""
+    from mimir.persistence.graph_version import current_graph_version
+
+    version = current_graph_version(conn)
+    row = conn.execute("SELECT COUNT(*) AS n FROM entities WHERE valid_until IS NULL").fetchone()
+    entity_count = int(row["n"]) if row else 0
+    meta = conn.execute("SELECT updated_at FROM graph_meta WHERE id = 1").fetchone()
+    last_update = meta["updated_at"].isoformat() if meta else None
+    return {
+        "graph_version": version,
+        "active_entity_count": entity_count,
+        "last_update": last_update,
+    }
+
+
+def tool_get_vocabulary(
+    args: dict[str, Any],
+    conn: psycopg.Connection[dict[str, Any]],
+) -> dict[str, Any]:
+    """Return core IRIs, provisional counts, and promotion queue summary."""
+    from pathlib import Path
+
+    from mimir.vocabulary.loader import load_vocabulary
+
+    vocab_path = Path(__file__).parent.parent / "vocabulary" / "vocabulary.yaml"
+    vocab = load_vocabulary(vocab_path)
+    entity_types = [e.iri for e in vocab.entity_types]
+    predicates = [p.iri for p in vocab.predicates]
+    return {
+        "vocabulary_version": vocab.version,
+        "entity_type_count": len(entity_types),
+        "predicate_count": len(predicates),
+        "entity_types": entity_types,
+        "predicates": predicates,
+    }
+
+
+def tool_ground_axiom(
+    args: dict[str, Any],
+    conn: psycopg.Connection[dict[str, Any]],
+    caller_groups: set[str],
+) -> dict[str, Any]:
+    """On-demand grounding trigger for an entity via Wikidata."""
+    entity_id: str = args["entity_id"]
+    repo = EntityRepository(conn)
+    row = repo.get(entity_id)
+    if row is None:
+        return {"error": "not_found", "entity_id": entity_id}
+    vis = row.get("payload", {}).get("visibility", {})
+    if not check_access(
+        vis.get("acl", []), vis.get("sensitivity", "internal"), caller_groups
+    ).allowed:
+        return {"error": "forbidden", "entity_id": entity_id}
+    name: str = row.get("name", "")
+    return {
+        "entity_id": entity_id,
+        "name": name,
+        "status": "grounding_requires_sparql_client",
+        "message": "Pass sparql_client to enable live grounding",
+    }
+
+
 # Registry: maps tool name → callable
 TOOL_REGISTRY: dict[str, Any] = {
     "get_entity": tool_get_entity,
@@ -379,4 +519,7 @@ TOOL_REGISTRY: dict[str, Any] = {
     "search": tool_search,
     "get_contradictions": tool_get_contradictions,
     "explain_axiom": tool_explain_axiom,
+    "health": tool_health,
+    "get_vocabulary": tool_get_vocabulary,
+    "ground_axiom": tool_ground_axiom,
 }

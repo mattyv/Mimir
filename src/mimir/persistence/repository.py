@@ -18,8 +18,9 @@ at_version : int | None
 from __future__ import annotations
 
 import json
+import math
 import unicodedata
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 import psycopg
@@ -34,6 +35,71 @@ from mimir.models.nodes import (
     Relationship,
 )
 from mimir.persistence.graph_version import bump_graph_version
+
+# ---------------------------------------------------------------------------
+# Confidence decay (§7.2)
+# Half-lives in days per source type.  A row's effective confidence is
+# confidence * 2^(-age_days / half_life).  Floor at 0.4 to prevent
+# stale information from being fully discredited.
+# ---------------------------------------------------------------------------
+
+_HALF_LIFE_DAYS: dict[str, float] = {
+    "confluence": 180.0,   # wiki pages stay fresh ~6 months
+    "github": 90.0,        # code/issues rotate faster
+    "slack": 30.0,         # Slack chatter decays quickly
+    "interview": 365.0,    # interviews are slow-changing
+    "code_analysis": 60.0, # code analysis refreshed ~monthly
+}
+_DECAY_FLOOR = 0.4
+_DEFAULT_HALF_LIFE = 120.0
+
+
+def _decayed_confidence(
+    base_confidence: float,
+    valid_from: datetime | None,
+    source_type: str,
+    *,
+    as_of: datetime | None = None,
+) -> float:
+    """Return confidence adjusted for time-based decay.
+
+    confidence_eff = max(floor, base * 2^(-age_days / half_life))
+    """
+    if valid_from is None:
+        return base_confidence
+    reference = as_of or datetime.now(UTC)
+    if valid_from.tzinfo is None:
+        valid_from = valid_from.replace(tzinfo=UTC)
+    if reference.tzinfo is None:
+        reference = reference.replace(tzinfo=UTC)
+    age_days = max(0.0, (reference - valid_from).total_seconds() / 86400.0)
+    half_life = _HALF_LIFE_DAYS.get(source_type, _DEFAULT_HALF_LIFE)
+    decayed = base_confidence * math.pow(2.0, -age_days / half_life)
+    return max(_DECAY_FLOOR, decayed)
+
+
+def apply_confidence_decay(
+    row: dict[str, Any],
+    *,
+    as_of: datetime | None = None,
+    apply_decay: bool = False,
+) -> dict[str, Any]:
+    """Optionally annotate a row with decayed_confidence."""
+    if not apply_decay:
+        return row
+    payload = row.get("payload") or {}
+    source_type: str = "confluence"
+    if isinstance(payload, dict):
+        source = payload.get("source") or {}
+        source_type = source.get("type", "confluence") if isinstance(source, dict) else "confluence"
+    valid_from = row.get("valid_from")
+    base = float(row.get("confidence", 1.0))
+    result = dict(row)
+    result["decayed_confidence"] = round(
+        _decayed_confidence(base, valid_from, source_type, as_of=as_of), 4
+    )
+    return result
+
 
 # ---------------------------------------------------------------------------
 # Helpers
