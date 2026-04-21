@@ -200,6 +200,19 @@ CREATE TABLE IF NOT EXISTS audit_log (
 )
 """
 
+# Tracks the last-seen version of each source document so the crawler can
+# skip unchanged pages (version_key = Confluence version number as string,
+# or ISO timestamp for other source types).
+CREATE_SOURCE_VERSIONS = """
+CREATE TABLE IF NOT EXISTS source_versions (
+    source_type  TEXT        NOT NULL,
+    source_ref   TEXT        NOT NULL,
+    version_key  TEXT        NOT NULL,
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (source_type, source_ref)
+)
+"""
+
 # Ordered list of all DDL statements to apply when creating schema from scratch
 ALL_DDL: tuple[str, ...] = (
     ENABLE_PGVECTOR,
@@ -217,6 +230,7 @@ ALL_DDL: tuple[str, ...] = (
     CREATE_RESOLUTION_QUEUE,
     CREATE_SOURCE_SATURATION,
     CREATE_AUDIT_LOG,
+    CREATE_SOURCE_VERSIONS,
 )
 
 # Teardown order respects FK constraints
